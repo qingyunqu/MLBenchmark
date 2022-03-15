@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cublas_v2.h>
+#include <cuda_bf16.h>
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include <iostream>
@@ -29,7 +30,7 @@ inline const char *cublasGetErrorString(cublasStatus_t status) {
   return "unknown error";
 }
 
-template <typename T, typename CompOn> class CublasMatmul {
+template <typename T, typename CompOn = float> class CublasMatmul {
 public:
   void Run(const T *a_val, const T *b_val, T *c_val, int64_t m, int64_t n,
            int64_t k, bool lhs_transpose, bool rhs_transpose,
@@ -37,11 +38,10 @@ public:
 };
 
 template <>
-void CublasMatmul<float, float>::Run(const float *a_val, const float *b_val,
-                                     float *c_val, int64_t m, int64_t n,
-                                     int64_t k, bool lhs_transpose,
-                                     bool rhs_transpose, bool output_transpose,
-                                     cublasHandle_t handle) {
+void CublasMatmul<float>::Run(const float *a_val, const float *b_val,
+                              float *c_val, int64_t m, int64_t n, int64_t k,
+                              bool lhs_transpose, bool rhs_transpose,
+                              bool output_transpose, cublasHandle_t handle) {
   float alpha = 1.0f, beta = 0.0f;
   if (!output_transpose) {
     if (!lhs_transpose && !rhs_transpose) {
@@ -160,6 +160,53 @@ void CublasMatmul<__half, __half>::Run(const __half *a_val, const __half *b_val,
     } else {
       CUBLASCHECK(cublasHgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha,
                               a_val, m, b_val, k, &beta, c_val, m));
+    }
+  }
+}
+
+template <>
+void CublasMatmul<__nv_bfloat16, float>::Run(
+    const __nv_bfloat16 *a_val, const __nv_bfloat16 *b_val,
+    __nv_bfloat16 *c_val, int64_t m, int64_t n, int64_t k, bool lhs_transpose,
+    bool rhs_transpose, bool output_transpose, cublasHandle_t handle) {
+  float alpha = 1.0f, beta = 0.0f;
+  // compute on fp32
+  if (!output_transpose) {
+    if (!lhs_transpose && !rhs_transpose) {
+      // CT = (AB)T = BT @ AT
+      CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, n, m, k,
+                                &alpha, b_val, CUDA_R_16BF, n, a_val,
+                                CUDA_R_16BF, k, &beta, c_val, CUDA_R_16BF, n));
+    } else if (!lhs_transpose & rhs_transpose) {
+      CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_N, n, m, k,
+                                &alpha, b_val, CUDA_R_16BF, k, a_val,
+                                CUDA_R_16BF, k, &beta, c_val, CUDA_R_16BF, n));
+    } else if (lhs_transpose & !rhs_transpose) {
+      CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_T, n, m, k,
+                                &alpha, b_val, CUDA_R_16BF, n, a_val,
+                                CUDA_R_16BF, m, &beta, c_val, CUDA_R_16BF, n));
+    } else {
+      CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_T, n, m, k,
+                                &alpha, b_val, CUDA_R_16BF, k, a_val,
+                                CUDA_R_16BF, m, &beta, c_val, CUDA_R_16BF, n));
+    }
+  } else {
+    if (!lhs_transpose && !rhs_transpose) {
+      CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_T, m, n, k,
+                                &alpha, a_val, CUDA_R_16BF, k, b_val,
+                                CUDA_R_16BF, n, &beta, c_val, CUDA_R_16BF, m));
+    } else if (!lhs_transpose & rhs_transpose) {
+      CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k,
+                                &alpha, a_val, CUDA_R_16BF, k, b_val,
+                                CUDA_R_16BF, k, &beta, c_val, CUDA_R_16BF, m));
+    } else if (lhs_transpose & !rhs_transpose) {
+      CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k,
+                                &alpha, a_val, CUDA_R_16BF, m, b_val,
+                                CUDA_R_16BF, n, &beta, c_val, CUDA_R_16BF, m));
+    } else {
+      CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k,
+                                &alpha, a_val, CUDA_R_16BF, m, b_val,
+                                CUDA_R_16BF, k, &beta, c_val, CUDA_R_16BF, m));
     }
   }
 }

@@ -2,6 +2,7 @@
 
 #include "./check.h"
 #include <algorithm>
+#include <cuda_bf16.h>
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include <stdio.h>
@@ -44,6 +45,20 @@ inline void RandCUDABuffer(__half *mat, size_t size, Args... args) {
     h_ptr[i] = static_cast<__half>(h_ptr_f[i]);
   }
   cudaMemcpy(mat, h_ptr, size * sizeof(__half), cudaMemcpyHostToDevice);
+  CUDACHECK(cudaDeviceSynchronize());
+  free(h_ptr);
+  free(h_ptr_f);
+}
+
+template <typename... Args>
+inline void RandCUDABuffer(__nv_bfloat16 *mat, size_t size, Args... args) {
+  float *h_ptr_f = (float *)malloc(size * sizeof(float));
+  RandCPUBuffer<float>(h_ptr_f, size, args...);
+  __nv_bfloat16 *h_ptr = (__nv_bfloat16 *)malloc(size * sizeof(__nv_bfloat16));
+  for (size_t i = 0; i < size; i++) {
+    h_ptr[i] = static_cast<__nv_bfloat16>(h_ptr_f[i]);
+  }
+  cudaMemcpy(mat, h_ptr, size * sizeof(__nv_bfloat16), cudaMemcpyHostToDevice);
   CUDACHECK(cudaDeviceSynchronize());
   free(h_ptr);
   free(h_ptr_f);

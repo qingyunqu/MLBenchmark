@@ -92,5 +92,9 @@ int main() {
   Run<__half, __half>(1024, 1024, 1024, false, false, false, 5e-1f);
   Run<__half, __half>(512, 512, 512, false, false, false, 5e-1f);
   Run<__half, __half>(511, 511, 511, false, false, false, 5e-1f);
+
+  Run<__nv_bfloat16>(1024, 1024, 1024, false, false, false, 5e-1f);
+  Run<__nv_bfloat16>(512, 512, 512, false, false, false, 5e-1f);
+  Run<__nv_bfloat16>(511, 511, 511, false, false, false, 5e-1f);
   return 0;
 }
