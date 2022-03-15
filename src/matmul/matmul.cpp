@@ -32,14 +32,19 @@ void benchmark(const T *a_val, const T *b_val, T *c_val, int64_t m, int64_t n,
   CUDACHECK(cudaEventSynchronize(stop));
   float elapsedTime = 0.f;
   CUDACHECK(cudaEventElapsedTime(&elapsedTime, start, stop));
-  printf("benchmark time: %fms\n", elapsedTime / run_time);
+  printf("%dx%dx%d, l:%d, r:%d, o:%d, time: %fms\n", m, n, k, lhs_transpose,
+         rhs_transpose, output_transpose, elapsedTime / run_time);
   CUDACHECK(cudaDeviceSynchronize());
+
+  CUDACHECK(cudaEventDestroy(start));
+  CUDACHECK(cudaEventDestroy(stop));
+  CUBLASCHECK(cublasDestroy(handle));
 }
 
 template <typename T, typename CompOn = float>
 void test(const T *a_val, const T *b_val, T *c_val, int64_t m, int64_t n,
           int64_t k, bool lhs_transpose, bool rhs_transpose,
-          bool output_transpose) {
+          bool output_transpose, float eps) {
   cudaStream_t stream = nullptr;
   cublasHandle_t handle;
   CUDACHECK(cudaSetDevice(0));
@@ -50,12 +55,13 @@ void test(const T *a_val, const T *b_val, T *c_val, int64_t m, int64_t n,
              output_transpose, handle);
   CUDACHECK(cudaDeviceSynchronize());
   CheckMatmul(a_val, b_val, c_val, m, n, k, lhs_transpose, rhs_transpose,
-              output_transpose, 1e-4f);
+              output_transpose, eps);
+  CUBLASCHECK(cublasDestroy(handle));
 }
 
-template <typename T>
+template <typename T, typename CompOn = float>
 void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
-         bool rhs_transpose, bool output_transpose) {
+         bool rhs_transpose, bool output_transpose, float eps) {
   T *a, *b, *c;
   CUDACHECK(cudaMalloc(&a, m * k * sizeof(T)));
   CUDACHECK(cudaMalloc(&b, k * n * sizeof(T)));
@@ -64,12 +70,27 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
   RandCUDABuffer(b, k * n);
   RandCUDABuffer(c, m * n);
 
-  test<T>(a, b, c, m, n, k, lhs_transpose, rhs_transpose, output_transpose);
-  benchmark<T>(a, b, c, m, n, k, lhs_transpose, rhs_transpose,
-               output_transpose);
+  test<T, CompOn>(a, b, c, m, n, k, lhs_transpose, rhs_transpose,
+                  output_transpose, eps);
+  benchmark<T, CompOn>(a, b, c, m, n, k, lhs_transpose, rhs_transpose,
+                       output_transpose);
+
+  CUDACHECK(cudaFree(a));
+  CUDACHECK(cudaFree(b));
+  CUDACHECK(cudaFree(c));
 }
 
 int main() {
-  Run<float>(1024, 1024, 1024, false, false, false);
+  Run<float>(1024, 1024, 1024, false, false, false, 1e-3f);
+  Run<float>(512, 512, 512, false, false, false, 1e-3f);
+  Run<float>(511, 511, 511, false, false, false, 1e-3f);
+
+  Run<__half>(1024, 1024, 1024, false, false, false, 2e-1f);
+  Run<__half>(512, 512, 512, false, false, false, 2e-1f);
+  Run<__half>(511, 511, 511, false, false, false, 2e-1f);
+
+  Run<__half, __half>(1024, 1024, 1024, false, false, false, 5e-1f);
+  Run<__half, __half>(512, 512, 512, false, false, false, 5e-1f);
+  Run<__half, __half>(511, 511, 511, false, false, false, 5e-1f);
   return 0;
 }
