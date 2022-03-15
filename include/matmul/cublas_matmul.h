@@ -1,21 +1,47 @@
-#include <cublas.h>
+#pragma once
+
+#include <cublas_v2.h>
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
+#include <iostream>
 
 #include "../check.h"
 
-template <typename T, typename CompOn = float> class CublasMatmul {
+inline const char *cublasGetErrorString(cublasStatus_t status) {
+  switch (status) {
+  case CUBLAS_STATUS_SUCCESS:
+    return "CUBLAS_STATUS_SUCCESS";
+  case CUBLAS_STATUS_NOT_INITIALIZED:
+    return "CUBLAS_STATUS_NOT_INITIALIZED";
+  case CUBLAS_STATUS_ALLOC_FAILED:
+    return "CUBLAS_STATUS_ALLOC_FAILED";
+  case CUBLAS_STATUS_INVALID_VALUE:
+    return "CUBLAS_STATUS_INVALID_VALUE";
+  case CUBLAS_STATUS_ARCH_MISMATCH:
+    return "CUBLAS_STATUS_ARCH_MISMATCH";
+  case CUBLAS_STATUS_MAPPING_ERROR:
+    return "CUBLAS_STATUS_MAPPING_ERROR";
+  case CUBLAS_STATUS_EXECUTION_FAILED:
+    return "CUBLAS_STATUS_EXECUTION_FAILED";
+  case CUBLAS_STATUS_INTERNAL_ERROR:
+    return "CUBLAS_STATUS_INTERNAL_ERROR";
+  }
+  return "unknown error";
+}
+
+template <typename T, typename CompOn> class CublasMatmul {
 public:
   void Run(const T *a_val, const T *b_val, T *c_val, int64_t m, int64_t n,
            int64_t k, bool lhs_transpose, bool rhs_transpose,
-           bool output_transpose);
-}
+           bool output_transpose, cublasHandle_t handle);
+};
 
 template <>
-CublasMatmul<float, float>::Run(const float *a_val, const float *b_val,
-                                float *c_val, int64_t m, int64_t n, int64_t k,
-                                bool lhs_transpose, bool rhs_transpose,
-                                bool output_transpose, cublasHandle_t handle) {
+void CublasMatmul<float, float>::Run(const float *a_val, const float *b_val,
+                                     float *c_val, int64_t m, int64_t n,
+                                     int64_t k, bool lhs_transpose,
+                                     bool rhs_transpose, bool output_transpose,
+                                     cublasHandle_t handle) {
   float alpha = 1.0f, beta = 0.0f;
   if (!output_transpose) {
     if (!lhs_transpose && !rhs_transpose) {
@@ -50,10 +76,11 @@ CublasMatmul<float, float>::Run(const float *a_val, const float *b_val,
 }
 
 template <>
-CublasMatmul<__half, float>::Run(const __half *a_val, const __half *b_val,
-                                 __half *c_val, int64_t m, int64_t n, int64_t k,
-                                 bool lhs_transpose, bool rhs_transpose,
-                                 bool output_transpose, cublasHandle_t handle) {
+void CublasMatmul<__half, float>::Run(const __half *a_val, const __half *b_val,
+                                      __half *c_val, int64_t m, int64_t n,
+                                      int64_t k, bool lhs_transpose,
+                                      bool rhs_transpose, bool output_transpose,
+                                      cublasHandle_t handle) {
   float alpha = 1.0f, beta = 0.0f;
   // compute on fp32
   if (!output_transpose) {
@@ -97,11 +124,12 @@ CublasMatmul<__half, float>::Run(const __half *a_val, const __half *b_val,
 }
 
 template <>
-CublasMatmul<__half, __half>::Run(const __half *a_val, const __half *b_val,
-                                  __half *c_val, int64_t m, int64_t n,
-                                  int64_t k, bool lhs_transpose,
-                                  bool rhs_transpose, bool output_transpose,
-                                  cublasHandle_t handle) {
+void CublasMatmul<__half, __half>::Run(const __half *a_val, const __half *b_val,
+                                       __half *c_val, int64_t m, int64_t n,
+                                       int64_t k, bool lhs_transpose,
+                                       bool rhs_transpose,
+                                       bool output_transpose,
+                                       cublasHandle_t handle) {
   __half alpha = static_cast<__half>(1.0f);
   __half beta = static_cast<__half>(0.0f);
   if (!output_transpose) {
