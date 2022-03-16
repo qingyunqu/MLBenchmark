@@ -13,13 +13,11 @@ void benchmark(Matmul<T> *op, const T *a_val, const T *b_val, T *c_val,
   CUDACHECK(cudaEventCreate(&stop));
 
   for (int i = 0; i < 10; i++) { // warm up
-    op->Run(a_val, b_val, c_val, m, n, k, lhs_transpose, rhs_transpose,
-            output_transpose);
+    op->Run(a_val, b_val, c_val, m, n, k);
   }
   CUDACHECK(cudaEventRecord(start, stream));
   for (int i = 0; i < run_time; i++) {
-    op->Run(a_val, b_val, c_val, m, n, k, lhs_transpose, rhs_transpose,
-            output_transpose);
+    op->Run(a_val, b_val, c_val, m, n, k);
   }
   CUDACHECK(cudaEventRecord(stop, stream));
 
@@ -38,11 +36,10 @@ template <typename T, typename CompOn = float>
 void test(Matmul<T> *op, const T *a_val, const T *b_val, T *c_val, int64_t m,
           int64_t n, int64_t k, bool lhs_transpose, bool rhs_transpose,
           bool output_transpose, float eps) {
-  op->Run(a_val, b_val, c_val, m, n, k, lhs_transpose, rhs_transpose,
-          output_transpose);
+  op->Run(a_val, b_val, c_val, m, n, k);
   CUDACHECK(cudaDeviceSynchronize());
-  CheckMatmul(a_val, b_val, c_val, m, n, k, lhs_transpose, rhs_transpose,
-              output_transpose, eps);
+  CheckMatmul<T, CompOn>(a_val, b_val, c_val, m, n, k, lhs_transpose,
+                         rhs_transpose, output_transpose, eps);
 }
 
 template <typename T, typename CompOn = float>
@@ -62,7 +59,8 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
   CUBLASCHECK(cublasCreate(&handle));
   CUBLASCHECK(cublasSetStream(handle, stream));
 
-  Matmul<T> *op = new CublasMatmul<T, CompOn>(handle);
+  Matmul<T> *op = new CublasMatmul<T, CompOn>(lhs_transpose, rhs_transpose,
+                                              output_transpose, handle);
   test<T, CompOn>(op, a, b, c, m, n, k, lhs_transpose, rhs_transpose,
                   output_transpose, eps);
   benchmark<T, CompOn>(op, a, b, c, m, n, k, lhs_transpose, rhs_transpose,
@@ -80,9 +78,9 @@ int main() {
   Run<float>(512, 512, 512, false, false, false, 1e-3f);
   Run<float>(511, 511, 511, false, false, false, 1e-3f);
 
-  Run<__half>(1024, 1024, 1024, false, false, false, 2e-1f);
-  Run<__half>(512, 512, 512, false, false, false, 2e-1f);
-  Run<__half>(511, 511, 511, false, false, false, 2e-1f);
+  Run<__half>(1024, 1024, 1024, false, false, false, 5e-1f);
+  Run<__half>(512, 512, 512, false, false, false, 5e-1f);
+  Run<__half>(511, 511, 511, false, false, false, 5e-1f);
 
   // Run<__half, __half>(1024, 1024, 1024, false, false, false, 5e-1f);
   // Run<__half, __half>(512, 512, 512, false, false, false, 5e-1f);

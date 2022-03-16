@@ -34,10 +34,12 @@ inline const char *cublasGetErrorString(cublasStatus_t status) {
 template <typename T, typename CompOn = float>
 class CublasMatmul : public Matmul<T> {
 public:
-  CublasMatmul(cublasHandle_t handle) : Matmul<T>(), handle(handle) {}
+  CublasMatmul(bool lhs_transpose, bool rhs_transpose, bool output_transpose,
+               cublasHandle_t handle)
+      : Matmul<T>(lhs_transpose, rhs_transpose, output_transpose),
+        handle(handle) {}
   virtual void Run(const T *a_val, const T *b_val, T *c_val, int64_t m,
-                   int64_t n, int64_t k, bool lhs_transpose, bool rhs_transpose,
-                   bool output_transpose) override;
+                   int64_t n, int64_t k) override;
   virtual ~CublasMatmul() = default;
 
 private:
@@ -46,9 +48,7 @@ private:
 
 template <>
 void CublasMatmul<float>::Run(const float *a_val, const float *b_val,
-                              float *c_val, int64_t m, int64_t n, int64_t k,
-                              bool lhs_transpose, bool rhs_transpose,
-                              bool output_transpose) {
+                              float *c_val, int64_t m, int64_t n, int64_t k) {
   float alpha = 1.0f, beta = 0.0f;
   if (!output_transpose) {
     if (!lhs_transpose && !rhs_transpose) {
@@ -85,9 +85,7 @@ void CublasMatmul<float>::Run(const float *a_val, const float *b_val,
 template <>
 void CublasMatmul<__half, float>::Run(const __half *a_val, const __half *b_val,
                                       __half *c_val, int64_t m, int64_t n,
-                                      int64_t k, bool lhs_transpose,
-                                      bool rhs_transpose,
-                                      bool output_transpose) {
+                                      int64_t k) {
   float alpha = 1.0f, beta = 0.0f;
   // compute on fp32
   if (!output_transpose) {
@@ -133,9 +131,7 @@ void CublasMatmul<__half, float>::Run(const __half *a_val, const __half *b_val,
 template <>
 void CublasMatmul<__half, __half>::Run(const __half *a_val, const __half *b_val,
                                        __half *c_val, int64_t m, int64_t n,
-                                       int64_t k, bool lhs_transpose,
-                                       bool rhs_transpose,
-                                       bool output_transpose) {
+                                       int64_t k) {
   __half alpha = static_cast<__half>(1.0f);
   __half beta = static_cast<__half>(0.0f);
   if (!output_transpose) {
@@ -171,10 +167,10 @@ void CublasMatmul<__half, __half>::Run(const __half *a_val, const __half *b_val,
 }
 
 template <>
-void CublasMatmul<__nv_bfloat16, float>::Run(
-    const __nv_bfloat16 *a_val, const __nv_bfloat16 *b_val,
-    __nv_bfloat16 *c_val, int64_t m, int64_t n, int64_t k, bool lhs_transpose,
-    bool rhs_transpose, bool output_transpose) {
+void CublasMatmul<__nv_bfloat16, float>::Run(const __nv_bfloat16 *a_val,
+                                             const __nv_bfloat16 *b_val,
+                                             __nv_bfloat16 *c_val, int64_t m,
+                                             int64_t n, int64_t k) {
   float alpha = 1.0f, beta = 0.0f;
   // compute on fp32
   if (!output_transpose) {

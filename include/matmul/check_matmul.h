@@ -1,12 +1,11 @@
 #pragma once
 
-#include "../check.h"
-#include "../util.h"
-#include <algorithm>
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
-#include <stdio.h>
 #include <stdlib.h>
+
+#include "../check.h"
+#include "../util.h"
 
 template <typename T, typename CompOn = float>
 bool CheckMatmul(const T *d_A, const T *d_B, T *d_C, int64_t m, int64_t n,
@@ -15,9 +14,9 @@ bool CheckMatmul(const T *d_A, const T *d_B, T *d_C, int64_t m, int64_t n,
   T *h_A = (T *)malloc(m * k * sizeof(T));
   T *h_B = (T *)malloc(k * n * sizeof(T));
   T *h_C = (T *)malloc(m * n * sizeof(T));
-  cudaMemcpy(h_A, d_A, m * k * sizeof(T), cudaMemcpyDeviceToHost);
-  cudaMemcpy(h_B, d_B, k * n * sizeof(T), cudaMemcpyDeviceToHost);
-  cudaMemcpy(h_C, d_C, m * n * sizeof(T), cudaMemcpyDeviceToHost);
+  CUDACHECK(cudaMemcpy(h_A, d_A, m * k * sizeof(T), cudaMemcpyDeviceToHost));
+  CUDACHECK(cudaMemcpy(h_B, d_B, k * n * sizeof(T), cudaMemcpyDeviceToHost));
+  CUDACHECK(cudaMemcpy(h_C, d_C, m * n * sizeof(T), cudaMemcpyDeviceToHost));
   CUDACHECK(cudaDeviceSynchronize());
 
   bool check = true;
