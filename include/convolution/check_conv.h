@@ -26,6 +26,7 @@ bool CheckConv(T *input, T *filter, T *output, const string &layout, int64_t N,
   CUDACHECK(cudaDeviceSynchronize());
 
   assert(dilateH == 1 && dilateW == 1);
+  assert(layout == "NHWC" || layout == "NCHW");
 
   bool check = true;
   for (int64_t n = 0; n < N; n++) {

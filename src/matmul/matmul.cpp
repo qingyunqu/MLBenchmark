@@ -1,42 +1,41 @@
 #include "matmul/check_matmul.h"
 #include "matmul/cublas_matmul.h"
+//#include "matmul/cutlass_matmul.h"
 #include "util.h"
 #include <stdio.h>
 
 template <typename T, typename CompOn = float>
-void benchmark(Matmul<T> *op, const T *a_val, const T *b_val, T *c_val,
-               int64_t m, int64_t n, int64_t k, bool lhs_transpose,
-               bool rhs_transpose, bool output_transpose, cudaStream_t stream) {
+float benchmark(Matmul<T> *op, const T *a_val, const T *b_val, T *c_val,
+                cudaStream_t stream) {
   cudaEvent_t start, stop;
   int run_time = 20;
   CUDACHECK(cudaEventCreate(&start));
   CUDACHECK(cudaEventCreate(&stop));
 
   for (int i = 0; i < 10; i++) { // warm up
-    op->Run(a_val, b_val, c_val, m, n, k);
+    op->Run(a_val, b_val, c_val);
   }
   CUDACHECK(cudaEventRecord(start, stream));
   for (int i = 0; i < run_time; i++) {
-    op->Run(a_val, b_val, c_val, m, n, k);
+    op->Run(a_val, b_val, c_val);
   }
   CUDACHECK(cudaEventRecord(stop, stream));
 
   CUDACHECK(cudaEventSynchronize(stop));
   float elapsedTime = 0.f;
   CUDACHECK(cudaEventElapsedTime(&elapsedTime, start, stop));
-  printf("%dx%dx%d, l:%d, r:%d, o:%d, time: %fms\n", m, n, k, lhs_transpose,
-         rhs_transpose, output_transpose, elapsedTime / run_time);
-  CUDACHECK(cudaDeviceSynchronize());
 
+  CUDACHECK(cudaDeviceSynchronize());
   CUDACHECK(cudaEventDestroy(start));
   CUDACHECK(cudaEventDestroy(stop));
+  return elapsedTime / run_time;
 }
 
 template <typename T, typename CompOn = float>
 void test(Matmul<T> *op, const T *a_val, const T *b_val, T *c_val, int64_t m,
           int64_t n, int64_t k, bool lhs_transpose, bool rhs_transpose,
           bool output_transpose, float eps) {
-  op->Run(a_val, b_val, c_val, m, n, k);
+  op->Run(a_val, b_val, c_val);
   CUDACHECK(cudaDeviceSynchronize());
   CheckMatmul<T, CompOn>(a_val, b_val, c_val, m, n, k, lhs_transpose,
                          rhs_transpose, output_transpose, eps);
@@ -59,12 +58,15 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
   CUBLASCHECK(cublasCreate(&handle));
   CUBLASCHECK(cublasSetStream(handle, stream));
 
-  Matmul<T> *op = new CublasMatmul<T, CompOn>(lhs_transpose, rhs_transpose,
-                                              output_transpose, handle);
+  Matmul<T> *op = new CublasMatmul<T, CompOn>(
+      m, n, k, lhs_transpose, rhs_transpose, output_transpose, handle);
+  // Matmul<T> *op = new CutlassMatmul<T, CompOn>(lhs_transpose, rhs_transpose,
+  //                                              output_transpose, stream);
   test<T, CompOn>(op, a, b, c, m, n, k, lhs_transpose, rhs_transpose,
                   output_transpose, eps);
-  benchmark<T, CompOn>(op, a, b, c, m, n, k, lhs_transpose, rhs_transpose,
-                       output_transpose, stream);
+  float time = benchmark<T, CompOn>(op, a, b, c, stream);
+  printf("%dx%dx%d, l:%d, r:%d, o:%d, time: %fms\n", m, n, k, lhs_transpose,
+         rhs_transpose, output_transpose, time);
 
   delete op;
   CUBLASCHECK(cublasDestroy(handle));
