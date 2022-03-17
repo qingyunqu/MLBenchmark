@@ -4,10 +4,11 @@
 #include "benchmark.h"
 #include "util.h"
 #include <stdio.h>
+#include <string>
 
 template <typename T, typename CompOn = float>
 void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
-         bool rhs_transpose, bool output_transpose, float eps) {
+         bool rhs_transpose, bool output_transpose, float eps, bool test) {
   T *a, *b, *c;
   CUDACHECK(cudaMalloc(&a, m * k * sizeof(T)));
   CUDACHECK(cudaMalloc(&b, k * n * sizeof(T)));
@@ -26,15 +27,18 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
   // Matmul<T> *op = new CutlassMatmul<T, CompOn>(lhs_transpose, rhs_transpose,
   //                                              output_transpose, stream);
 
-  // test
-  op->Run(a, b, c);
-  CUDACHECK(cudaDeviceSynchronize());
-  CheckMatmul<T, CompOn>(a, b, c, m, n, k, lhs_transpose, rhs_transpose,
-                         output_transpose, eps);
-  // benchmark
-  float time = benchmark<T>(op, stream, a, b, c);
-  printf("%dx%dx%d, l:%d, r:%d, o:%d, time: %fms\n", m, n, k, lhs_transpose,
-         rhs_transpose, output_transpose, time);
+  if (test) {
+    // test
+    op->Run(a, b, c);
+    CUDACHECK(cudaDeviceSynchronize());
+    CheckMatmul<T, CompOn>(a, b, c, m, n, k, lhs_transpose, rhs_transpose,
+                           output_transpose, eps);
+  } else {
+    // benchmark
+    float time = benchmark<T>(op, stream, a, b, c);
+    printf("%dx%dx%d, l:%d, r:%d, o:%d, time: %fms\n", m, n, k, lhs_transpose,
+           rhs_transpose, output_transpose, time);
+  }
 
   delete op;
   CUBLASCHECK(cublasDestroy(handle));
@@ -43,21 +47,22 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
   CUDACHECK(cudaFree(c));
 }
 
-int main() {
-  Run<float>(1024, 1024, 1024, false, false, false, 1e-3f);
-  Run<float>(512, 512, 512, false, false, false, 1e-3f);
-  Run<float>(511, 511, 511, false, false, false, 1e-3f);
+int main(int argc, char *argv[]) {
+  bool test = std::string(argv[1]) == "0" ? true : false;
+  Run<float>(1024, 1024, 1024, false, false, false, 1e-3f, test);
+  Run<float>(512, 512, 512, false, false, false, 1e-3f, test);
+  Run<float>(511, 511, 511, false, false, false, 1e-3f, test);
 
-  Run<__half>(1024, 1024, 1024, false, false, false, 5e-1f);
-  Run<__half>(512, 512, 512, false, false, false, 5e-1f);
-  Run<__half>(511, 511, 511, false, false, false, 5e-1f);
+  Run<__half>(1024, 1024, 1024, false, false, false, 5e-1f, test);
+  Run<__half>(512, 512, 512, false, false, false, 5e-1f, test);
+  Run<__half>(511, 511, 511, false, false, false, 5e-1f, test);
 
-  // Run<__half, __half>(1024, 1024, 1024, false, false, false, 5e-1f);
-  // Run<__half, __half>(512, 512, 512, false, false, false, 5e-1f);
-  // Run<__half, __half>(511, 511, 511, false, false, false, 5e-1f);
+  // Run<__half, __half>(1024, 1024, 1024, false, false, false, 5e-1f, test);
+  // Run<__half, __half>(512, 512, 512, false, false, false, 5e-1f, test);
+  // Run<__half, __half>(511, 511, 511, false, false, false, 5e-1f, test);
 
-  // Run<__nv_bfloat16>(1024, 1024, 1024, false, false, false, 5e-1f);
-  // Run<__nv_bfloat16>(512, 512, 512, false, false, false, 5e-1f);
-  // Run<__nv_bfloat16>(511, 511, 511, false, false, false, 5e-1f);
+  // Run<__nv_bfloat16>(1024, 1024, 1024, false, false, false, 5e-1f, test);
+  // Run<__nv_bfloat16>(512, 512, 512, false, false, false, 5e-1f, test);
+  // Run<__nv_bfloat16>(511, 511, 511, false, false, false, 5e-1f, test);
   return 0;
 }
