@@ -1,6 +1,13 @@
 #pragma once
 
-template <typename T> class Matmul {
+#include <string>
+
+template <typename T> class Op {
+public:
+  virtual void Run(const T *, const T *, T *) = 0;
+};
+
+template <typename T> class Matmul : public Op<T> {
 public:
   Matmul(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
          bool rhs_transpose, bool output_transpose)
@@ -14,9 +21,9 @@ public:
   bool lhs_transpose, rhs_transpose, output_transpose;
 };
 
-template <typename T> class Conv {
+template <typename T> class Conv : public Op<T> {
 public:
-  Conv(const string &layout, int64_t N, int64_t iC, int64_t iH, int64_t iW,
+  Conv(const std::string &layout, int64_t N, int64_t iC, int64_t iH, int64_t iW,
        int64_t oC, int64_t kH, int64_t kW, int64_t oH, int64_t oW,
        int64_t strideH, int64_t strideW, int64_t paddingH, int64_t paddingW,
        int64_t dilateH, int64_t dilateW)
@@ -28,7 +35,7 @@ public:
   virtual ~Conv() = default;
 
 public:
-  string layout;
+  std::string layout;
   int64_t N, iC, iH, iW, oC, kH, kW, oH, oW, strideH, strideW, paddingH,
       paddingW, dilateH, dilateW;
 };
