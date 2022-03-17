@@ -3,6 +3,8 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include <cudnn.h>
+#include <iostream>
+#include <string>
 
 #include "../check.h"
 #include "../ops.h"
@@ -18,9 +20,9 @@ template <> struct ctype_to_cudnn_dtype<__half> {
 template <typename T, typename CompOn = float>
 class CudnnConv : public Conv<T> {
 public:
-  CudnnConv(const string &layout, int64_t N, int64_t iC, int64_t iH, int64_t iW,
-            int64_t oC, int64_t kH, int64_t kW, int64_t oH, int64_t oW,
-            int64_t strideH, int64_t strideW, int64_t paddingH,
+  CudnnConv(const std::string &layout, int64_t N, int64_t iC, int64_t iH,
+            int64_t iW, int64_t oC, int64_t kH, int64_t kW, int64_t oH,
+            int64_t oW, int64_t strideH, int64_t strideW, int64_t paddingH,
             int64_t paddingW, int64_t dilateH, int64_t dilateW,
             cudnnHandle_t handle)
       : Conv<T>(layout, N, iC, iH, iW, oC, kH, kW, oH, oW, strideH, strideW,
@@ -34,7 +36,7 @@ public:
       format = CUDNN_TENSOR_NHWC;
     }
 
-    auto type = ctype_to_cudnn_dtype<T>;
+    auto type = ctype_to_cudnn_dtype<T>::value;
     CUDNNCHECK(cudnnCreateTensorDescriptor(&input_descriptor));
     CUDNNCHECK(cudnnSetTensor4dDescriptor(input_descriptor,
                                           /*format=*/format,
@@ -69,14 +71,14 @@ public:
         /*dilation_h=*/dilateH,
         /*dilation_w=*/dilateW,
         /*mode=*/CUDNN_CROSS_CORRELATION,
-        /*computeType=*/ctype_to_cudnn_dtype<CompOn>));
+        /*computeType=*/ctype_to_cudnn_dtype<CompOn>::value));
 
     int returnedAlgoCount = 0;
     CUDNNCHECK(cudnnFindConvolutionForwardAlgorithm(
         handle, input_descriptor, filter_descriptor, convolution_descriptor,
         output_descriptor,
         /*requestedAlgoCount=*/1, &returnedAlgoCount, &perf));
-    assert(requestedAlgoCount == 1);
+    assert(returnedAlgoCount == 1);
 
     CUDACHECK(cudaMalloc(&workspace, perf.memory));
   }
@@ -104,4 +106,4 @@ private:
   cudnnConvolutionDescriptor_t convolution_descriptor;
   cudnnConvolutionFwdAlgoPerf_t perf;
   void *workspace = nullptr;
-}
+};

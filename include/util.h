@@ -31,7 +31,7 @@ template <typename T, typename... Args>
 void RandCUDABuffer(T *mat, size_t size, Args... args) {
   T *h_ptr = (T *)malloc(size * sizeof(T));
   RandCPUBuffer<T>(h_ptr, size, args...);
-  cudaMemcpy(mat, h_ptr, size * sizeof(T), cudaMemcpyHostToDevice);
+  CUDACHECK(cudaMemcpy(mat, h_ptr, size * sizeof(T), cudaMemcpyHostToDevice));
   CUDACHECK(cudaDeviceSynchronize());
   free(h_ptr);
 }
@@ -44,7 +44,8 @@ inline void RandCUDABuffer(__half *mat, size_t size, Args... args) {
   for (size_t i = 0; i < size; i++) {
     h_ptr[i] = static_cast<__half>(h_ptr_f[i]);
   }
-  cudaMemcpy(mat, h_ptr, size * sizeof(__half), cudaMemcpyHostToDevice);
+  CUDACHECK(
+      cudaMemcpy(mat, h_ptr, size * sizeof(__half), cudaMemcpyHostToDevice));
   CUDACHECK(cudaDeviceSynchronize());
   free(h_ptr);
   free(h_ptr_f);
@@ -58,7 +59,8 @@ inline void RandCUDABuffer(__nv_bfloat16 *mat, size_t size, Args... args) {
   for (size_t i = 0; i < size; i++) {
     h_ptr[i] = static_cast<__nv_bfloat16>(h_ptr_f[i]);
   }
-  cudaMemcpy(mat, h_ptr, size * sizeof(__nv_bfloat16), cudaMemcpyHostToDevice);
+  CUDACHECK(cudaMemcpy(mat, h_ptr, size * sizeof(__nv_bfloat16),
+                       cudaMemcpyHostToDevice));
   CUDACHECK(cudaDeviceSynchronize());
   free(h_ptr);
   free(h_ptr_f);

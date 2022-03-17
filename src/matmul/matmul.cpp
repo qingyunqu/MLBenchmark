@@ -14,7 +14,6 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
   CUDACHECK(cudaMalloc(&c, m * n * sizeof(T)));
   RandCUDABuffer(a, m * k);
   RandCUDABuffer(b, k * n);
-  RandCUDABuffer(c, m * n);
   CUDACHECK(cudaSetDevice(0));
 
   cudaStream_t stream = nullptr;

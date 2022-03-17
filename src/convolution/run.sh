@@ -1,0 +1,1 @@
+nvcc -o test conv.cpp -I/root/share/MLBenchmark/include -lcudnn -std=c++17 -I/root/share/cutlass/include -I/root/share/cutlass/tools/util/include -arch=sm_75

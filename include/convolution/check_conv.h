@@ -4,14 +4,15 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include <stdlib.h>
+#include <string>
 
 #include "../check.h"
 #include "../util.h"
 
 template <typename T, typename CompType = float>
-bool CheckConv(T *input, T *filter, T *output, const string &layout, int64_t N,
-               int64_t iC, int64_t iH, int64_t iW, int64_t oC, int64_t kH,
-               int64_t kW, int64_t oH, int64_t oW, int64_t strideH,
+bool CheckConv(T *input, T *filter, T *output, const std::string &layout,
+               int64_t N, int64_t iC, int64_t iH, int64_t iW, int64_t oC,
+               int64_t kH, int64_t kW, int64_t oH, int64_t oW, int64_t strideH,
                int64_t strideW, int64_t paddingH, int64_t paddingW,
                int64_t dilateH, int64_t dilateW, float eps) {
   T *h_input = (T *)malloc(N * iH * iW * iC * sizeof(T));
