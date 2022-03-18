@@ -7,16 +7,16 @@
 #include "../check.h"
 #include "../util.h"
 
-template <typename T, typename CompOn = float>
-bool CheckMatmul(const T *d_A, const T *d_B, T *d_C, int64_t m, int64_t n,
+template <typename T, typename To, typename CompOn = float>
+bool CheckMatmul(const T *d_A, const T *d_B, To *d_C, int64_t m, int64_t n,
                  int64_t k, bool lhs_transpose, bool rhs_transpose,
                  bool output_transpose, float eps) {
   T *h_A = (T *)malloc(m * k * sizeof(T));
   T *h_B = (T *)malloc(k * n * sizeof(T));
-  T *h_C = (T *)malloc(m * n * sizeof(T));
+  To *h_C = (To *)malloc(m * n * sizeof(To));
   CUDACHECK(cudaMemcpy(h_A, d_A, m * k * sizeof(T), cudaMemcpyDeviceToHost));
   CUDACHECK(cudaMemcpy(h_B, d_B, k * n * sizeof(T), cudaMemcpyDeviceToHost));
-  CUDACHECK(cudaMemcpy(h_C, d_C, m * n * sizeof(T), cudaMemcpyDeviceToHost));
+  CUDACHECK(cudaMemcpy(h_C, d_C, m * n * sizeof(To), cudaMemcpyDeviceToHost));
   CUDACHECK(cudaDeviceSynchronize());
 
   bool check = true;
@@ -43,9 +43,9 @@ bool CheckMatmul(const T *d_A, const T *d_B, T *d_C, int64_t m, int64_t n,
         }
       }
       if (!output_transpose) {
-        check = EXPECT_NEAR(h_C[i * n + j], static_cast<T>(sum), eps);
+        check = EXPECT_NEAR(h_C[i * n + j], static_cast<To>(sum), eps);
       } else {
-        check = EXPECT_NEAR(h_C[i + j * m], static_cast<T>(sum), eps);
+        check = EXPECT_NEAR(h_C[i + j * m], static_cast<To>(sum), eps);
       }
       if (!check) {
         goto EXIT;

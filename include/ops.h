@@ -2,18 +2,18 @@
 
 #include <string>
 
-template <typename T> class Op {
+template <typename T, typename To = T> class Op {
 public:
-  virtual void Run(const T *, const T *, T *) = 0;
+  virtual void Run(const T *, const T *, To *) = 0;
 };
 
-template <typename T> class Matmul : public Op<T> {
+template <typename T, typename To = T> class Matmul : public Op<T, To> {
 public:
   Matmul(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
          bool rhs_transpose, bool output_transpose)
       : m(m), n(n), k(k), lhs_transpose(lhs_transpose),
         rhs_transpose(rhs_transpose), output_transpose(output_transpose) {}
-  virtual void Run(const T *a_val, const T *b_val, T *c_val) = 0;
+  virtual void Run(const T *a_val, const T *b_val, To *c_val) = 0;
   virtual ~Matmul() = default;
 
 public:

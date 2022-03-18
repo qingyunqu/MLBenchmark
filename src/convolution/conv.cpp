@@ -71,13 +71,13 @@ int main(int argc, char *argv[]) {
 
   Run<__half>(/*layout=*/"NHWC", /*N=*/1, /*iC=*/128, /*iH=*/28,
               /*iW=*/28, /*oC=*/256, /*kH=*/3, /*kW=*/3, /*strideH=*/2,
-              /*strideW=*/2, /*paddingH=*/1, /*paddingW=*/1, 5e-2f, test);
+              /*strideW=*/2, /*paddingH=*/1, /*paddingW=*/1, 3e-1f, test);
   Run<__half>(/*layout=*/"NCHW", /*N=*/1, /*iC=*/128, /*iH=*/28,
               /*iW=*/28, /*oC=*/256, /*kH=*/3, /*kW=*/3, /*strideH=*/2,
-              /*strideW=*/2, /*paddingH=*/1, /*paddingW=*/1, 5e-2f, test);
+              /*strideW=*/2, /*paddingH=*/1, /*paddingW=*/1, 3e-1f, test);
   Run<__half>(/*layout=*/"NCHW", /*N=*/1, /*iC=*/128, /*iH=*/28,
               /*iW=*/28, /*oC=*/256, /*kH=*/3, /*kW=*/3, /*strideH=*/1,
-              /*strideW=*/1, /*paddingH=*/0, /*paddingW=*/0, 5e-2f, test);
+              /*strideW=*/1, /*paddingH=*/0, /*paddingW=*/0, 3e-1f, test);
 
   return 0;
 }

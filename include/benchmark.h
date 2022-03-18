@@ -5,8 +5,8 @@
 #include "check.h"
 #include "ops.h"
 
-template <typename T, typename... Args>
-float benchmark(Op<T> *op, cudaStream_t stream, Args... args) {
+template <typename T, typename To, typename... Args>
+float benchmark(Op<T, To> *op, cudaStream_t stream, Args... args) {
   cudaEvent_t start, stop;
   int run_time = 20;
   CUDACHECK(cudaEventCreate(&start));

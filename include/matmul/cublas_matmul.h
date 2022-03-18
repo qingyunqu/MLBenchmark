@@ -9,6 +9,17 @@
 #include "../check.h"
 #include "../ops.h"
 
+template <typename T> struct ctype_to_cublas_dtype {};
+template <> struct ctype_to_cublas_dtype<float> {
+  static constexpr cudaDataType_t value = CUDA_R_32F;
+};
+template <> struct ctype_to_cublas_dtype<__half> {
+  static constexpr cudaDataType_t value = CUDA_R_16F;
+};
+template <> struct ctype_to_cublas_dtype<__nv_bfloat16> {
+  static constexpr cudaDataType_t value = CUDA_R_16BF;
+};
+
 inline const char *cublasGetErrorString(cublasStatus_t status) {
   switch (status) {
   case CUBLAS_STATUS_SUCCESS:
@@ -31,14 +42,14 @@ inline const char *cublasGetErrorString(cublasStatus_t status) {
   return "unknown error";
 }
 
-template <typename T, typename CompOn = float>
-class CublasMatmul : public Matmul<T> {
+template <typename T, typename To, typename CompOn>
+class CublasMatmul : public Matmul<T, To> {
 public:
   CublasMatmul(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
                bool rhs_transpose, bool output_transpose, cublasHandle_t handle)
-      : Matmul<T>(m, n, k, lhs_transpose, rhs_transpose, output_transpose),
+      : Matmul<T, To>(m, n, k, lhs_transpose, rhs_transpose, output_transpose),
         handle(handle) {}
-  virtual void Run(const T *a_val, const T *b_val, T *c_val) override;
+  virtual void Run(const T *a_val, const T *b_val, To *c_val) override;
   virtual ~CublasMatmul() = default;
 
 private:
@@ -46,8 +57,8 @@ private:
 };
 
 template <>
-void CublasMatmul<float>::Run(const float *a_val, const float *b_val,
-                              float *c_val) {
+void CublasMatmul<float, float, float>::Run(const float *a_val,
+                                            const float *b_val, float *c_val) {
   float alpha = 1.0f, beta = 0.0f;
   if (!output_transpose) {
     if (!lhs_transpose && !rhs_transpose) {
@@ -81,54 +92,91 @@ void CublasMatmul<float>::Run(const float *a_val, const float *b_val,
   }
 }
 
-template <>
-void CublasMatmul<__half, float>::Run(const __half *a_val, const __half *b_val,
-                                      __half *c_val) {
+template <typename T, typename To>
+inline void run(const T *a_val, const T *b_val, To *c_val,
+                cudaDataType_t input_dtype, cudaDataType_t output_dtype,
+                int64_t m, int64_t n, int64_t k, bool lhs_transpose,
+                bool rhs_transpose, bool output_transpose,
+                cublasHandle_t handle) {
   float alpha = 1.0f, beta = 0.0f;
   // compute on fp32
   if (!output_transpose) {
     if (!lhs_transpose && !rhs_transpose) {
       // CT = (AB)T = BT @ AT
       CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, n, m, k,
-                                &alpha, b_val, CUDA_R_16F, n, a_val, CUDA_R_16F,
-                                k, &beta, c_val, CUDA_R_16F, n));
+                                &alpha, b_val, input_dtype, n, a_val,
+                                input_dtype, k, &beta, c_val, output_dtype, n));
     } else if (!lhs_transpose & rhs_transpose) {
       CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_N, n, m, k,
-                                &alpha, b_val, CUDA_R_16F, k, a_val, CUDA_R_16F,
-                                k, &beta, c_val, CUDA_R_16F, n));
+                                &alpha, b_val, input_dtype, k, a_val,
+                                input_dtype, k, &beta, c_val, output_dtype, n));
     } else if (lhs_transpose & !rhs_transpose) {
       CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_T, n, m, k,
-                                &alpha, b_val, CUDA_R_16F, n, a_val, CUDA_R_16F,
-                                m, &beta, c_val, CUDA_R_16F, n));
+                                &alpha, b_val, input_dtype, n, a_val,
+                                input_dtype, m, &beta, c_val, output_dtype, n));
     } else {
       CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_T, n, m, k,
-                                &alpha, b_val, CUDA_R_16F, k, a_val, CUDA_R_16F,
-                                m, &beta, c_val, CUDA_R_16F, n));
+                                &alpha, b_val, input_dtype, k, a_val,
+                                input_dtype, m, &beta, c_val, output_dtype, n));
     }
   } else {
     if (!lhs_transpose && !rhs_transpose) {
       CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_T, m, n, k,
-                                &alpha, a_val, CUDA_R_16F, k, b_val, CUDA_R_16F,
-                                n, &beta, c_val, CUDA_R_16F, m));
+                                &alpha, a_val, input_dtype, k, b_val,
+                                input_dtype, n, &beta, c_val, output_dtype, m));
     } else if (!lhs_transpose & rhs_transpose) {
       CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k,
-                                &alpha, a_val, CUDA_R_16F, k, b_val, CUDA_R_16F,
-                                k, &beta, c_val, CUDA_R_16F, m));
+                                &alpha, a_val, input_dtype, k, b_val,
+                                input_dtype, k, &beta, c_val, output_dtype, m));
     } else if (lhs_transpose & !rhs_transpose) {
       CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k,
-                                &alpha, a_val, CUDA_R_16F, m, b_val, CUDA_R_16F,
-                                n, &beta, c_val, CUDA_R_16F, m));
+                                &alpha, a_val, input_dtype, m, b_val,
+                                input_dtype, n, &beta, c_val, output_dtype, m));
     } else {
       CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k,
-                                &alpha, a_val, CUDA_R_16F, m, b_val, CUDA_R_16F,
-                                k, &beta, c_val, CUDA_R_16F, m));
+                                &alpha, a_val, input_dtype, m, b_val,
+                                input_dtype, k, &beta, c_val, output_dtype, m));
     }
   }
 }
 
+// T: __half, __nv_bfloat16
+// To: __half, __nv_bfloat16, float
+
 template <>
-void CublasMatmul<__half, __half>::Run(const __half *a_val, const __half *b_val,
-                                       __half *c_val) {
+void CublasMatmul<__half, __half, float>::Run(const __half *a_val,
+                                              const __half *b_val,
+                                              __half *c_val) {
+  auto input_dtype = ctype_to_cublas_dtype<__half>::value;
+  auto output_dtype = ctype_to_cublas_dtype<__half>::value;
+  run(a_val, b_val, c_val, input_dtype, output_dtype, m, n, k, lhs_transpose,
+      rhs_transpose, output_transpose, handle);
+}
+
+template <>
+void CublasMatmul<__half, float, float>::Run(const __half *a_val,
+                                             const __half *b_val,
+                                             float *c_val) {
+  auto input_dtype = ctype_to_cublas_dtype<__half>::value;
+  auto output_dtype = ctype_to_cublas_dtype<float>::value;
+  run(a_val, b_val, c_val, input_dtype, output_dtype, m, n, k, lhs_transpose,
+      rhs_transpose, output_transpose, handle);
+}
+
+template <>
+void CublasMatmul<__nv_bfloat16, __nv_bfloat16, float>::Run(
+    const __nv_bfloat16 *a_val, const __nv_bfloat16 *b_val,
+    __nv_bfloat16 *c_val) {
+  auto input_dtype = ctype_to_cublas_dtype<__nv_bfloat16>::value;
+  auto output_dtype = ctype_to_cublas_dtype<__nv_bfloat16>::value;
+  run(a_val, b_val, c_val, input_dtype, output_dtype, m, n, k, lhs_transpose,
+      rhs_transpose, output_transpose, handle);
+}
+
+template <>
+void CublasMatmul<__half, __half, __half>::Run(const __half *a_val,
+                                               const __half *b_val,
+                                               __half *c_val) {
   __half alpha = static_cast<__half>(1.0f);
   __half beta = static_cast<__half>(0.0f);
   if (!output_transpose) {
@@ -163,48 +211,3 @@ void CublasMatmul<__half, __half>::Run(const __half *a_val, const __half *b_val,
   }
 }
 
-template <>
-void CublasMatmul<__nv_bfloat16, float>::Run(const __nv_bfloat16 *a_val,
-                                             const __nv_bfloat16 *b_val,
-                                             __nv_bfloat16 *c_val) {
-  float alpha = 1.0f, beta = 0.0f;
-  // compute on fp32
-  if (!output_transpose) {
-    if (!lhs_transpose && !rhs_transpose) {
-      // CT = (AB)T = BT @ AT
-      CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, n, m, k,
-                                &alpha, b_val, CUDA_R_16BF, n, a_val,
-                                CUDA_R_16BF, k, &beta, c_val, CUDA_R_16BF, n));
-    } else if (!lhs_transpose & rhs_transpose) {
-      CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_N, n, m, k,
-                                &alpha, b_val, CUDA_R_16BF, k, a_val,
-                                CUDA_R_16BF, k, &beta, c_val, CUDA_R_16BF, n));
-    } else if (lhs_transpose & !rhs_transpose) {
-      CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_T, n, m, k,
-                                &alpha, b_val, CUDA_R_16BF, n, a_val,
-                                CUDA_R_16BF, m, &beta, c_val, CUDA_R_16BF, n));
-    } else {
-      CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_T, n, m, k,
-                                &alpha, b_val, CUDA_R_16BF, k, a_val,
-                                CUDA_R_16BF, m, &beta, c_val, CUDA_R_16BF, n));
-    }
-  } else {
-    if (!lhs_transpose && !rhs_transpose) {
-      CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_T, m, n, k,
-                                &alpha, a_val, CUDA_R_16BF, k, b_val,
-                                CUDA_R_16BF, n, &beta, c_val, CUDA_R_16BF, m));
-    } else if (!lhs_transpose & rhs_transpose) {
-      CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k,
-                                &alpha, a_val, CUDA_R_16BF, k, b_val,
-                                CUDA_R_16BF, k, &beta, c_val, CUDA_R_16BF, m));
-    } else if (lhs_transpose & !rhs_transpose) {
-      CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k,
-                                &alpha, a_val, CUDA_R_16BF, m, b_val,
-                                CUDA_R_16BF, n, &beta, c_val, CUDA_R_16BF, m));
-    } else {
-      CUBLASCHECK(cublasSgemmEx(handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k,
-                                &alpha, a_val, CUDA_R_16BF, m, b_val,
-                                CUDA_R_16BF, k, &beta, c_val, CUDA_R_16BF, m));
-    }
-  }
-}
