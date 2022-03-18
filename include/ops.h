@@ -2,11 +2,13 @@
 
 #include <string>
 
+// General Op
 template <typename T, typename To = T> class Op {
 public:
   virtual void Run(const T *, const T *, To *) = 0;
 };
 
+// Matmul Op
 template <typename T, typename To = T> class Matmul : public Op<T, To> {
 public:
   Matmul(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
@@ -21,7 +23,8 @@ public:
   bool lhs_transpose, rhs_transpose, output_transpose;
 };
 
-template <typename T> class Conv : public Op<T> {
+// Conv Op
+template <typename T, typename To = T> class Conv : public Op<T, To> {
 public:
   Conv(const std::string &layout, int64_t N, int64_t iC, int64_t iH, int64_t iW,
        int64_t oC, int64_t kH, int64_t kW, int64_t oH, int64_t oW,
@@ -31,7 +34,7 @@ public:
         oH(oH), oW(oW), strideH(strideH), strideW(strideW), paddingH(paddingH),
         paddingW(paddingW), dilateH(dilateH), dilateW(dilateW) {}
   virtual bool Check() = 0;
-  virtual void Run(const T *input, const T *filter, T *output) = 0;
+  virtual void Run(const T *input, const T *filter, To *output) = 0;
   virtual ~Conv() = default;
 
 public:

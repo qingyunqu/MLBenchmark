@@ -32,8 +32,11 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
     // test
     op->Run(a, b, c);
     CUDACHECK(cudaDeviceSynchronize());
-    CheckMatmul<T, To, CompOn>(a, b, c, m, n, k, lhs_transpose, rhs_transpose,
-                               output_transpose, eps);
+    bool passed = CheckMatmul<T, To, CompOn>(
+        a, b, c, m, n, k, lhs_transpose, rhs_transpose, output_transpose, eps);
+    if (passed) {
+      printf("Test Passed.\n");
+    }
   } else {
     // benchmark
     float time = benchmark<T, To>(op, stream, a, b, c);

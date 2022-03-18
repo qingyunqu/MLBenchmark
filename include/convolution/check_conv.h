@@ -9,20 +9,20 @@
 #include "../check.h"
 #include "../util.h"
 
-template <typename T, typename CompType = float>
-bool CheckConv(T *input, T *filter, T *output, const std::string &layout,
+template <typename T, typename To, typename CompType = float>
+bool CheckConv(T *input, T *filter, To *output, const std::string &layout,
                int64_t N, int64_t iC, int64_t iH, int64_t iW, int64_t oC,
                int64_t kH, int64_t kW, int64_t oH, int64_t oW, int64_t strideH,
                int64_t strideW, int64_t paddingH, int64_t paddingW,
                int64_t dilateH, int64_t dilateW, float eps) {
   T *h_input = (T *)malloc(N * iH * iW * iC * sizeof(T));
   T *h_filter = (T *)malloc(oC * kH * kW * iC * sizeof(T));
-  T *h_output = (T *)malloc(N * oH * oW * oC * sizeof(T));
+  To *h_output = (To *)malloc(N * oH * oW * oC * sizeof(To));
   CUDACHECK(cudaMemcpy(h_input, input, N * iH * iW * iC * sizeof(T),
                        cudaMemcpyDeviceToHost));
   CUDACHECK(cudaMemcpy(h_filter, filter, oC * kH * kW * iC * sizeof(T),
                        cudaMemcpyDeviceToHost));
-  CUDACHECK(cudaMemcpy(h_output, output, N * oH * oW * oC * sizeof(T),
+  CUDACHECK(cudaMemcpy(h_output, output, N * oH * oW * oC * sizeof(To),
                        cudaMemcpyDeviceToHost));
   CUDACHECK(cudaDeviceSynchronize());
 
@@ -72,7 +72,7 @@ bool CheckConv(T *input, T *filter, T *output, const std::string &layout,
             }
           }
           check =
-              EXPECT_NEAR(h_output[output_index], static_cast<T>(result), eps);
+              EXPECT_NEAR(h_output[output_index], static_cast<To>(result), eps);
           if (!check) {
             goto EXIT;
           }

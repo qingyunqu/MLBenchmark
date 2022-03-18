@@ -92,12 +92,13 @@ void CublasMatmul<float, float, float>::Run(const float *a_val,
   }
 }
 
+// outside function for cublasSgemmEx
 template <typename T, typename To>
-inline void run(const T *a_val, const T *b_val, To *c_val,
-                cudaDataType_t input_dtype, cudaDataType_t output_dtype,
-                int64_t m, int64_t n, int64_t k, bool lhs_transpose,
-                bool rhs_transpose, bool output_transpose,
-                cublasHandle_t handle) {
+inline void run_SgemmEx(const T *a_val, const T *b_val, To *c_val,
+                        cudaDataType_t input_dtype, cudaDataType_t output_dtype,
+                        int64_t m, int64_t n, int64_t k, bool lhs_transpose,
+                        bool rhs_transpose, bool output_transpose,
+                        cublasHandle_t handle) {
   float alpha = 1.0f, beta = 0.0f;
   // compute on fp32
   if (!output_transpose) {
@@ -140,17 +141,14 @@ inline void run(const T *a_val, const T *b_val, To *c_val,
   }
 }
 
-// T: __half, __nv_bfloat16
-// To: __half, __nv_bfloat16, float
-
 template <>
 void CublasMatmul<__half, __half, float>::Run(const __half *a_val,
                                               const __half *b_val,
                                               __half *c_val) {
   auto input_dtype = ctype_to_cublas_dtype<__half>::value;
   auto output_dtype = ctype_to_cublas_dtype<__half>::value;
-  run(a_val, b_val, c_val, input_dtype, output_dtype, m, n, k, lhs_transpose,
-      rhs_transpose, output_transpose, handle);
+  run_SgemmEx(a_val, b_val, c_val, input_dtype, output_dtype, m, n, k,
+              lhs_transpose, rhs_transpose, output_transpose, handle);
 }
 
 template <>
@@ -159,8 +157,8 @@ void CublasMatmul<__half, float, float>::Run(const __half *a_val,
                                              float *c_val) {
   auto input_dtype = ctype_to_cublas_dtype<__half>::value;
   auto output_dtype = ctype_to_cublas_dtype<float>::value;
-  run(a_val, b_val, c_val, input_dtype, output_dtype, m, n, k, lhs_transpose,
-      rhs_transpose, output_transpose, handle);
+  run_SgemmEx(a_val, b_val, c_val, input_dtype, output_dtype, m, n, k,
+              lhs_transpose, rhs_transpose, output_transpose, handle);
 }
 
 template <>
@@ -169,8 +167,8 @@ void CublasMatmul<__nv_bfloat16, __nv_bfloat16, float>::Run(
     __nv_bfloat16 *c_val) {
   auto input_dtype = ctype_to_cublas_dtype<__nv_bfloat16>::value;
   auto output_dtype = ctype_to_cublas_dtype<__nv_bfloat16>::value;
-  run(a_val, b_val, c_val, input_dtype, output_dtype, m, n, k, lhs_transpose,
-      rhs_transpose, output_transpose, handle);
+  run_SgemmEx(a_val, b_val, c_val, input_dtype, output_dtype, m, n, k,
+              lhs_transpose, rhs_transpose, output_transpose, handle);
 }
 
 template <>
