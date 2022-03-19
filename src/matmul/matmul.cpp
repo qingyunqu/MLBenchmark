@@ -1,7 +1,7 @@
+#include "benchmark.h"
 #include "matmul/check_matmul.h"
 #include "matmul/cublas_matmul.h"
-//#include "matmul/cutlass_matmul.h"
-#include "benchmark.h"
+// #include "matmul/cutlass_matmul.h"
 #include "util.h"
 #include <stdio.h>
 #include <string>
@@ -25,8 +25,8 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
 
   Matmul<T, To> *op = new CublasMatmul<T, To, CompOn>(
       m, n, k, lhs_transpose, rhs_transpose, output_transpose, handle);
-  // Matmul<T> *op = new CutlassMatmul<T, CompOn>(lhs_transpose, rhs_transpose,
-  //                                              output_transpose, stream);
+  // Matmul<T, To> *op = new CutlassMatmul<T, To, CompOn>(
+  //     m, n, k, lhs_transpose, rhs_transpose, output_transpose, stream);
 
   if (test) {
     // test
@@ -54,11 +54,14 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
 int main(int argc, char *argv[]) {
   bool test = std::string(argv[1]) == "0" ? true : false;
 
-  Run<__half, float, float>(4096, 4096, 4096, false, false, true, 1e-2f, test);
+  Run<__half, __half, float>(4096, 4096, 4096, false, false, true, 1e-2f, test);
+  // Run<__half, float, float>(4096, 4096, 4096, false, false, true, 1e-2f,
+  // test);
 
-  Run<__half, float, float>(1024, 1024, 1024, false, false, false, 1e-2f, test);
-  Run<__half, float, float>(512, 512, 512, false, false, false, 1e-2f, test);
-  Run<__half, float, float>(511, 511, 511, false, false, false, 1e-2f, test);
+  // Run<__half, float, float>(1024, 1024, 1024, false, false, false, 1e-2f,
+  // test);
+  // Run<__half, float, float>(512, 512, 512, false, false, false, 1e-2f, test);
+  // Run<__half, float, float>(511, 511, 511, false, false, false, 1e-2f, test);
 
   // Run<float>(1024, 1024, 1024, false, false, false, 1e-3f, test);
   // Run<float>(512, 512, 512, false, false, false, 1e-3f, test);

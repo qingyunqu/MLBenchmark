@@ -30,3 +30,29 @@ float benchmark(Op<T, To> *op, cudaStream_t stream, Args... args) {
   CUDACHECK(cudaEventDestroy(stop));
   return elapsedTime / run_time;
 }
+
+template <typename Gemm>
+float benchmark_cutlass(Gemm* op, cudaStream_t stream) {
+  cudaEvent_t start, stop;
+  int run_time = 20;
+  CUDACHECK(cudaEventCreate(&start));
+  CUDACHECK(cudaEventCreate(&stop));
+
+  for (int i = 0; i < 10; i++) { // warm up
+    (*op)();
+  }
+  CUDACHECK(cudaEventRecord(start, stream));
+  for (int i = 0; i < run_time; i++) {
+    (*op)();
+  }
+  CUDACHECK(cudaEventRecord(stop, stream));
+
+  CUDACHECK(cudaEventSynchronize(stop));
+  float elapsedTime = 0.f;
+  CUDACHECK(cudaEventElapsedTime(&elapsedTime, start, stop));
+
+  CUDACHECK(cudaDeviceSynchronize());
+  CUDACHECK(cudaEventDestroy(start));
+  CUDACHECK(cudaEventDestroy(stop));
+  return elapsedTime / run_time;
+}

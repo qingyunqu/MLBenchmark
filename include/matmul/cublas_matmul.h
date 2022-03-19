@@ -49,6 +49,7 @@ public:
                bool rhs_transpose, bool output_transpose, cublasHandle_t handle)
       : Matmul<T, To>(m, n, k, lhs_transpose, rhs_transpose, output_transpose),
         handle(handle) {}
+  virtual bool Check() override { return true; }
   virtual void Run(const T *a_val, const T *b_val, To *c_val) override;
   virtual ~CublasMatmul() = default;
 

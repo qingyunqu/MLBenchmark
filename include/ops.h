@@ -5,6 +5,7 @@
 // General Op
 template <typename T, typename To = T> class Op {
 public:
+  virtual bool Check() = 0;
   virtual void Run(const T *, const T *, To *) = 0;
 };
 
@@ -15,6 +16,7 @@ public:
          bool rhs_transpose, bool output_transpose)
       : m(m), n(n), k(k), lhs_transpose(lhs_transpose),
         rhs_transpose(rhs_transpose), output_transpose(output_transpose) {}
+  virtual bool Check() = 0;
   virtual void Run(const T *a_val, const T *b_val, To *c_val) = 0;
   virtual ~Matmul() = default;
 
