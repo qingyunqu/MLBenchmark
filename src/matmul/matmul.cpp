@@ -54,9 +54,8 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
 int main(int argc, char *argv[]) {
   bool test = std::string(argv[1]) == "0" ? true : false;
 
-  Run<__half, __half, float>(4096, 4096, 4096, false, false, true, 1e-2f, test);
-  // Run<__half, float, float>(4096, 4096, 4096, false, false, true, 1e-2f,
-  // test);
+  // Run<__half, __half, float>(4096, 4096, 4096, false, false, true, 1e-2f, test);
+  Run<__half, float, float>(4096, 4096, 4096, false, false, true, 1e-2f, test);
 
   // Run<__half, float, float>(1024, 1024, 1024, false, false, false, 1e-2f,
   // test);

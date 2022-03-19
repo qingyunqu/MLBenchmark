@@ -126,8 +126,12 @@ the output from CUTLASS kernel is same as reference GEMM kernel.
 #include "cutlass/util/reference/host/tensor_fill.h"
 #include "cutlass/util/tensor_view_io.h"
 
-#include "check.h"
 #include "benchmark.h"
+#include "check.h"
+#include "matmul/check_matmul.h"
+#include "matmul/cublas_matmul.h"
+#include "util.h"
+#include <memory>
 
 // The code section below describes datatype for input, output matrices and computation between
 // elements in input matrices.
@@ -135,28 +139,27 @@ using ElementAccumulator = float;                   // <- data type of accumulat
 using ElementComputeEpilogue = ElementAccumulator;  // <- data type of epilogue operations
 using ElementInputA = cutlass::half_t;              // <- data type of elements in input matrix A
 using ElementInputB = cutlass::half_t;              // <- data type of elements in input matrix B
-using ElementOutput =
-    cutlass::half_t; // <- data type of elements in output matrix D
+using ElementOutput = float;                        // <- data type of elements in output matrix D
 
 // The code section below describes matrix layout of input and output matrices. Column Major for
 // Matrix A, Row Major for Matrix B and Row Major for Matrix C
 using LayoutInputA = cutlass::layout::RowMajor;
 using LayoutInputB = cutlass::layout::RowMajor;
-using LayoutOutput = cutlass::layout::RowMajor;
+using LayoutOutput = cutlass::layout::ColumnMajor;
 
 // This code section describes whether you want to use tensor cores or regular SIMT cores on GPU SM
 using MMAOp = cutlass::arch::OpClassTensorOp;
 
 // This code section describes CUDA SM architecture number
-using SmArch = cutlass::arch::Sm70;
+using SmArch = cutlass::arch::Sm75;
 
 // This code section describes the tile size a thread block will compute
 using ShapeMMAThreadBlock =
-    cutlass::gemm::GemmShape<128, 128, 32>;  // <- threadblock tile M = 128, N = 128, K = 32
+    cutlass::gemm::GemmShape<256, 128, 32>;  // <- threadblock tile M = 128, N = 128, K = 32
 // This code section describes tile size a warp will compute
 using ShapeMMAWarp = cutlass::gemm::GemmShape<64, 64, 32>;  // <- warp tile M = 64, N = 64, K = 32 
 // This code section describes the size of MMA op
-using ShapeMMAOp = cutlass::gemm::GemmShape<8, 8, 4>;  // <- MMA Op tile M = 8, N = 8, K = 4
+using ShapeMMAOp = cutlass::gemm::GemmShape<16, 8, 8>;  // <- MMA Op tile M = 8, N = 8, K = 4
 
 // This code section describes how threadblocks are scheduled on GPU
 using SwizzleThreadBlock = cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>;  // <- ??
@@ -164,7 +167,7 @@ using SwizzleThreadBlock = cutlass::gemm::threadblock::GemmIdentityThreadblockSw
 // This code section describes ?
 using EpilogueOp = cutlass::epilogue::thread::LinearCombination<
     ElementOutput,                                     // <- data type of output matrix
-    128 / cutlass::sizeof_bits<ElementOutput>::value,  // <- this is the number of elements per
+    8,  // <- this is the number of elements per
                                                        // vectorized memory access. For half
                                                        // precision, it's 8 elements. This becomes
                                                        // the vector width of math instructions in
@@ -330,10 +333,25 @@ int run() {
   tensor_d.sync_host();
   tensor_ref_d.sync_host();
 
+  cublasHandle_t handle;
+  CUBLASCHECK(cublasCreate(&handle));
+  CUBLASCHECK(cublasSetStream(handle, stream));
+  Matmul<__half, ElementOutput> * op = new CublasMatmul<__half, ElementOutput, ElementAccumulator>(
+      (int64_t)length_m, (int64_t)length_n, (int64_t)length_k, false, false, true, handle);
+  op->Run((__half*)tensor_a.device_ref().data(), (__half*)tensor_b.device_ref().data(), tensor_ref_d.device_ref().data());
+  CUDACHECK(cudaDeviceSynchronize());
+  bool passed = CheckCUDABuffer<ElementOutput>(tensor_d.device_ref().data(), tensor_ref_d.device_ref().data(), length_m * length_n, 1e-2f);
+  CUBLASCHECK(cublasDestroy(handle));
+
+  // bool passed = CheckMatmul<__half, ElementOutput>((__half*)tensor_a.device_ref().data(),
+  //                                                  (__half*)tensor_b.device_ref().data(),
+  //                                                  tensor_d.device_ref().data(),
+  //                                                  length_m, length_n, length_k,
+  //                                                  false, false, true, 1e-2f);
   // Check if output from CUTLASS kernel and reference kernel are equal or not
-  bool passed = cutlass::reference::host::TensorEquals(
-    tensor_d.host_view(),
-    tensor_ref_d.host_view());
+  // bool passed = cutlass::reference::host::TensorEquals(
+  //   tensor_d.host_view(),
+  //   tensor_ref_d.host_view());
 
   std::cout << (passed ? "Passed" : "Failed") << std::endl;
 

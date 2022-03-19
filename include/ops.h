@@ -2,14 +2,20 @@
 
 #include <string>
 
+//===----------------------------------------------------------------------===//
 // General Op
+//===----------------------------------------------------------------------===//
+
 template <typename T, typename To = T> class Op {
 public:
   virtual bool Check() = 0;
   virtual void Run(const T *, const T *, To *) = 0;
 };
 
+//===----------------------------------------------------------------------===//
 // Matmul Op
+//===----------------------------------------------------------------------===//
+
 template <typename T, typename To = T> class Matmul : public Op<T, To> {
 public:
   Matmul(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
@@ -25,7 +31,10 @@ public:
   bool lhs_transpose, rhs_transpose, output_transpose;
 };
 
+//===----------------------------------------------------------------------===//
 // Conv Op
+//===----------------------------------------------------------------------===//
+
 template <typename T, typename To = T> class Conv : public Op<T, To> {
 public:
   Conv(const std::string &layout, int64_t N, int64_t iC, int64_t iH, int64_t iW,

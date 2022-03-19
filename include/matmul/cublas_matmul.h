@@ -57,6 +57,9 @@ private:
   cublasHandle_t handle;
 };
 
+//===----------------------------------------------------------------------===//
+// cublasSgemm
+//===----------------------------------------------------------------------===//
 template <>
 void CublasMatmul<float, float, float>::Run(const float *a_val,
                                             const float *b_val, float *c_val) {
@@ -92,6 +95,10 @@ void CublasMatmul<float, float, float>::Run(const float *a_val,
     }
   }
 }
+
+//===----------------------------------------------------------------------===//
+// cublasSgemmEx
+//===----------------------------------------------------------------------===//
 
 // outside function for cublasSgemmEx
 template <typename T, typename To>
@@ -172,6 +179,9 @@ void CublasMatmul<__nv_bfloat16, __nv_bfloat16, float>::Run(
               lhs_transpose, rhs_transpose, output_transpose, handle);
 }
 
+//===----------------------------------------------------------------------===//
+// cublasHgemm
+//===----------------------------------------------------------------------===//
 template <>
 void CublasMatmul<__half, __half, __half>::Run(const __half *a_val,
                                                const __half *b_val,
