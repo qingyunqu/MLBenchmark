@@ -5,14 +5,16 @@
 #include "check.h"
 #include "ops.h"
 
+constexpr int warm_up = 100;
+constexpr int run_time = 200;
+
 template <typename T, typename To, typename... Args>
 float benchmark(Op<T, To> *op, cudaStream_t stream, Args... args) {
   cudaEvent_t start, stop;
-  int run_time = 20;
   CUDACHECK(cudaEventCreate(&start));
   CUDACHECK(cudaEventCreate(&stop));
 
-  for (int i = 0; i < 10; i++) { // warm up
+  for (int i = 0; i < warm_up; i++) { // warm up
     op->Run(args...);
   }
   CUDACHECK(cudaEventRecord(start, stream));
@@ -34,11 +36,10 @@ float benchmark(Op<T, To> *op, cudaStream_t stream, Args... args) {
 template <typename Gemm>
 float benchmark_cutlass(Gemm* op, cudaStream_t stream) {
   cudaEvent_t start, stop;
-  int run_time = 20;
   CUDACHECK(cudaEventCreate(&start));
   CUDACHECK(cudaEventCreate(&stop));
 
-  for (int i = 0; i < 10; i++) { // warm up
+  for (int i = 0; i < warm_up; i++) { // warm up
     (*op)();
   }
   CUDACHECK(cudaEventRecord(start, stream));

@@ -109,6 +109,7 @@ template <typename T,
           std::enable_if_t<std::is_floating_point<T>::value, int> = 0>
 void PrintCPUBuffer(T* mat, size_t size, size_t print_size = 0) {
   print_size = (print_size == 0) ? size : print_size;
+  print_size = (print_size > size) ? size : print_size;
   for (size_t i = 0; i < print_size; i++) {
     printf("%f ", static_cast<float>(mat[i]));
     if (i != 0 && i % 20 == 0) {
@@ -123,7 +124,7 @@ void PrintCUDABuffer(T* mat, size_t size, size_t print_size = 0) {
   T* h_mat = (T*)malloc(size * sizeof(T));
   CUDACHECK(cudaMemcpy(h_mat, mat, size * sizeof(T), cudaMemcpyDeviceToHost));
   CUDACHECK(cudaDeviceSynchronize());
-  FillCPUBuffer<T>(h_mat, size, print_size);
+  PrintCPUBuffer<T>(h_mat, size, print_size);
   free(h_mat);
 }
 
