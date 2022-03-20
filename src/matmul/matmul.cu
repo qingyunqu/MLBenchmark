@@ -212,12 +212,12 @@ int run() {
     return 0;
   }
 
-  const int length_m = 4096;
-  const int length_n = 4096;
-  const int length_k = 4096;
+  const int m = 4096;
+  const int n = 4096;
+  const int k = 4096;
 
   // Create a tuple of problem size for matrix multiplication
-  cutlass::gemm::GemmCoord problem_size(length_m, length_n, length_k);
+  cutlass::gemm::GemmCoord problem_size(m, n, k);
 
   // Initialize tensors using CUTLASS helper functions
   cutlass::HostTensor<ElementInputA, LayoutInputA> tensor_a(
@@ -300,34 +300,10 @@ int run() {
   CUTLASS_CHECK(status);
 
   // Launch initialized CUTLASS kernel
-  status = gemm_op();
-  CUTLASS_CHECK(status);
+  CUTLASS_CHECK(gemm_op());
 
   float time = benchmark_cutlass<Gemm>(&gemm_op, stream);
   printf("time: %fms\n", time);
-
-  // Create instantiation for device reference gemm kernel
-  cutlass::reference::device::Gemm<ElementInputA,
-                                   LayoutInputA,
-                                   ElementInputB,
-                                   LayoutInputB,
-                                   ElementOutput,
-                                   LayoutOutput,
-                                   ElementComputeEpilogue,
-                                   ElementComputeEpilogue>
-      gemm_device;
-
-  // Launch device reference gemm kernel
-  gemm_device(problem_size,
-              alpha,
-              tensor_a.device_ref(),
-              tensor_b.device_ref(),
-              beta,
-              tensor_c.device_ref(),
-              tensor_ref_d.device_ref());
-
-  // Wait for kernels to finish
-  cudaDeviceSynchronize();
 
   // Copy output data from CUTLASS and reference kernel to host for comparison
   tensor_d.sync_host();
@@ -336,22 +312,13 @@ int run() {
   cublasHandle_t handle;
   CUBLASCHECK(cublasCreate(&handle));
   CUBLASCHECK(cublasSetStream(handle, stream));
-  Matmul<__half, ElementOutput> * op = new CublasMatmul<__half, ElementOutput, ElementAccumulator>(
-      (int64_t)length_m, (int64_t)length_n, (int64_t)length_k, false, false, true, handle);
+  Matmul<__half, ElementOutput>* op = new CublasMatmul<__half, ElementOutput, ElementAccumulator>(
+      (int64_t)m, (int64_t)n, (int64_t)k, false, false, true, handle);
   op->Run((__half*)tensor_a.device_ref().data(), (__half*)tensor_b.device_ref().data(), tensor_ref_d.device_ref().data());
   CUDACHECK(cudaDeviceSynchronize());
-  bool passed = CheckCUDABuffer<ElementOutput>(tensor_d.device_ref().data(), tensor_ref_d.device_ref().data(), length_m * length_n, 1e-2f);
+  bool passed = CheckCUDABuffer<ElementOutput>(tensor_d.device_ref().data(), tensor_ref_d.device_ref().data(), m * n, 1e-2f);
+  delete op;
   CUBLASCHECK(cublasDestroy(handle));
-
-  // bool passed = CheckMatmul<__half, ElementOutput>((__half*)tensor_a.device_ref().data(),
-  //                                                  (__half*)tensor_b.device_ref().data(),
-  //                                                  tensor_d.device_ref().data(),
-  //                                                  length_m, length_n, length_k,
-  //                                                  false, false, true, 1e-2f);
-  // Check if output from CUTLASS kernel and reference kernel are equal or not
-  // bool passed = cutlass::reference::host::TensorEquals(
-  //   tensor_d.host_view(),
-  //   tensor_ref_d.host_view());
 
   std::cout << (passed ? "Passed" : "Failed") << std::endl;
 
