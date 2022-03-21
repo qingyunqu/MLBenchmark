@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
   Run<__half, __half, float>(1024, 1024, 1024, false, false, true, 1e-2f, test);
   Run<__half, __half, float>(2048, 2048, 2048, false, false, true, 1e-2f, test);
   Run<__half, __half, float>(3072, 3072, 3072, false, false, true, 1e-2f, test);
-  // Run<__half, float, float>(4096, 4096, 4096, true, true, false, 1e-2f, test);
+  Run<__half, __half, float>(4096, 4096, 4096, true, true, false, 1e-2f, test);
 
   // Run<__half, float, float>(1024, 1024, 1024, false, false, false, 1e-2f,
   // test);

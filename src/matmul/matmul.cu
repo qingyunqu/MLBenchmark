@@ -32,7 +32,7 @@ using CompOn = cutlass_type_to_ctype<ElementAccumulator>::type;
 // The code section below describes matrix layout of input and output matrices. Column Major for
 // Matrix A, Row Major for Matrix B and Row Major for Matrix C
 using LayoutInputA = cutlass::layout::ColumnMajor;
-using LayoutInputB = cutlass::layout::ColumnMajor;
+using LayoutInputB = cutlass::layout::RowMajor;
 using LayoutOutput = cutlass::layout::RowMajor;
 
 // This code section describes whether you want to use tensor cores or regular SIMT cores on GPU SM
@@ -167,7 +167,7 @@ int run() {
   CUTLASS_CHECK(gemm_op());
 
   float time = benchmark_cutlass<Gemm>(&gemm_op, stream);
-  printf("time: %fms\n", time);
+  printf("time: %f ms\n", time);
 
   // Copy output data from CUTLASS and reference kernel to host for comparison
   // tensor_d.sync_host();
@@ -176,14 +176,18 @@ int run() {
   cublasHandle_t handle;
   CUBLASCHECK(cublasCreate(&handle));
   CUBLASCHECK(cublasSetStream(handle, stream));
-  Matmul<TA, TO>* op = new CublasMatmul<TA, TO, CompOn>((int64_t)m, (int64_t)n, (int64_t)k, true, true, false, handle);
+  Matmul<TA, TO>* op = new CublasMatmul<TA, TO, CompOn>((int64_t)m, (int64_t)n, (int64_t)k, true, false, false, handle);
   op->Run((TA*)tensor_a.device_ref().data(), (TB*)tensor_b.device_ref().data(), (TO*)tensor_ref_d.device_ref().data());
   CUDACHECK(cudaDeviceSynchronize());
+  
   bool passed = CheckCUDABuffer<TO>((TO*)tensor_d.device_ref().data(), (TO*)tensor_ref_d.device_ref().data(), m * n, 1e-5f);
-  delete op;
-  CUBLASCHECK(cublasDestroy(handle));
-
   std::cout << (passed ? "Passed" : "Failed") << std::endl;
+  
+  time = benchmark<TA, TO>(op, stream, (TA*)tensor_a.device_ref().data(), (TB*)tensor_b.device_ref().data(), (TO*)tensor_ref_d.device_ref().data());
+  printf("cublas time: %f ms\n", time);
+  CUBLASCHECK(cublasDestroy(handle));
+  delete op;
+  
 
   // PrintCUDABuffer<TO>((TO*)tensor_d.device_ref().data(), 20);
   // PrintCUDABuffer<TO>((TO*)tensor_ref_d.device_ref().data(), 20);
