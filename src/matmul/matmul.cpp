@@ -1,7 +1,6 @@
 #include "benchmark.h"
 #include "matmul/check_matmul.h"
 #include "matmul/cublas_matmul.h"
-// #include "matmul/cutlass_matmul.h"
 #include "util.h"
 #include <stdio.h>
 #include <string>
@@ -25,8 +24,6 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
 
   Matmul<T, To> *op = new CublasMatmul<T, To, CompOn>(
       m, n, k, lhs_transpose, rhs_transpose, output_transpose, handle);
-  // Matmul<T, To> *op = new CutlassMatmul<T, To, CompOn>(
-  //     m, n, k, lhs_transpose, rhs_transpose, output_transpose, stream);
 
   if (test) {
     // test

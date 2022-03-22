@@ -7,15 +7,8 @@
 #include <string>
 
 #include "../check.h"
+#include "../dtype.h"
 #include "../ops.h"
-
-template <typename T> struct ctype_to_cudnn_dtype {};
-template <> struct ctype_to_cudnn_dtype<float> {
-  static constexpr cudnnDataType_t value = CUDNN_DATA_FLOAT;
-};
-template <> struct ctype_to_cudnn_dtype<__half> {
-  static constexpr cudnnDataType_t value = CUDNN_DATA_HALF;
-};
 
 template <typename T, typename To = T, typename CompOn = float>
 class CudnnConv : public Conv<T, To> {

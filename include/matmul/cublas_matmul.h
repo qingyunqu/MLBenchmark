@@ -7,18 +7,8 @@
 #include <iostream>
 
 #include "../check.h"
+#include "../dtype.h"
 #include "../ops.h"
-
-template <typename T> struct ctype_to_cublas_dtype {};
-template <> struct ctype_to_cublas_dtype<float> {
-  static constexpr cudaDataType_t value = CUDA_R_32F;
-};
-template <> struct ctype_to_cublas_dtype<__half> {
-  static constexpr cudaDataType_t value = CUDA_R_16F;
-};
-template <> struct ctype_to_cublas_dtype<__nv_bfloat16> {
-  static constexpr cudaDataType_t value = CUDA_R_16BF;
-};
 
 inline const char *cublasGetErrorString(cublasStatus_t status) {
   switch (status) {
