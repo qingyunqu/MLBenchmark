@@ -40,7 +40,7 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
   } else {
     // benchmark
     float time = benchmark<T, To>(op, stream, a, b, c);
-    printf("%dx%dx%d, l:%d, r:%d, o:%d, time: %fms\n", m, n, k, lhs_transpose,
+    printf("%dx%dx%d, l:%d, r:%d, o:%d, time: %f ms\n", m, n, k, lhs_transpose,
            rhs_transpose, output_transpose, time);
   }
 
@@ -52,13 +52,19 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
 }
 
 int main(int argc, char *argv[]) {
-  bool test = std::string(argv[1]) == "0" ? true : false;
+  bool test = false;
+  // bool test = std::string(argv[1]) == "0" ? true : false;
 
-  Run<__half, __half, float>(512, 512, 512, false, false, true, 1e-2f, test);
-  Run<__half, __half, float>(1024, 1024, 1024, false, false, true, 1e-2f, test);
-  Run<__half, __half, float>(2048, 2048, 2048, false, false, true, 1e-2f, test);
-  Run<__half, __half, float>(3072, 3072, 3072, false, false, true, 1e-2f, test);
-  Run<__half, __half, float>(4096, 4096, 4096, true, true, false, 1e-2f, test);
+  Run<__half, __half, float>(atoi(argv[1]), atoi(argv[2]), atoi(argv[3]), false, false, true, 1e-2f, /*test=*/false);
+
+  // Ti To CompOn
+  // for (bool lhs: {false, true}) {
+  //   for (bool rhs: {false, true}) {
+  //     for (int64_t i: {512, 1024, 2048, 3072, 4096, 5120}) {
+  //       Run<__half, __half, float>(i, i, i, lhs, rhs, true, 1e-2f, test);
+  //     }
+  //   }
+  // }
 
   // Run<__half, float, float>(1024, 1024, 1024, false, false, false, 1e-2f,
   // test);

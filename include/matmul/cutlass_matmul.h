@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cuda_runtime.h>
+#include <vector>
 
 #include "cutlass/cutlass.h"
 #include "cutlass/gemm/device/gemm.h"
@@ -9,107 +10,60 @@
 #include "../check.h"
 #include "../ops.h"
 
-// template <typename T, typename To> class CutlassMatmulWrap {
-// public:
-//   using ElementAccumulator = float;
-//   using ElementComputeEpilogue = ElementAccumulator;
-//   using ElementInputA = cutlass::half_t;
-//   using ElementInputB = cutlass::half_t;
-//   using ElementOutput = cutlass::half_t;
-//   using LayoutInputA = cutlass::layout::RowMajor;
-//   using LayoutInputB = cutlass::layout::RowMajor;
-//   using LayoutOutput = cutlass::layout::RowMajor;
-//   using MMAOp = cutlass::arch::OpClassTensorOp;
-//   using SmArch = cutlass::arch::Sm70;
-//   using ShapeMMAThreadBlock = cutlass::gemm::GemmShape<128, 128, 32>;
-//   using ShapeMMAWarp = cutlass::gemm::GemmShape<64, 64, 32>;
-//   using ShapeMMAOp = cutlass::gemm::GemmShape<8, 8, 4>;
-//   using SwizzleThreadBlock =
-//       cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>;
-//   using EpilogueOp = cutlass::epilogue::thread::LinearCombination<
-//       ElementOutput, 128 / cutlass::sizeof_bits<ElementOutput>::value,
-//       ElementAccumulator, ElementComputeEpilogue>;
-//   constexpr int NumStages = 2;
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
-//   using Gemm = cutlass::gemm::device::Gemm<
-//       ElementInputA, LayoutInputA, ElementInputB, LayoutInputB,
-//       ElementOutput,
-//       LayoutOutput, ElementAccumulator, MMAOp, SmArch, ShapeMMAThreadBlock,
-//       ShapeMMAWarp, ShapeMMAOp, EpilogueOp, SwizzleThreadBlock, NumStages>;
+// Gemm operator cutlass_tensorop_s1688gemm_f16_256x128_32x2_nn_align8
+using Operation_cutlass_tensorop_s1688gemm_f16_256x128_32x2_nn_align8 =
+    cutlass::gemm::device::Gemm<
+        cutlass::half_t, cutlass::layout::ColumnMajor, cutlass::half_t,
+        cutlass::layout::ColumnMajor, float, cutlass::layout::RowMajor, float,
+        cutlass::arch::OpClassTensorOp, cutlass::arch::Sm75,
+        cutlass::gemm::GemmShape<256, 128, 32>,
+        cutlass::gemm::GemmShape<64, 64, 32>,
+        cutlass::gemm::GemmShape<16, 8, 8>,
+        cutlass::epilogue::thread::LinearCombination<float, 4, float, float>,
+        cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<8>, 2, 8, 8,
+        false, cutlass::arch::OpMultiplyAdd
 
-//   CutlassMatmulWrap() = default;
-//   void Run(T *a_val, T *b_val, To *c_val, int64_t M, int64_t N, int64_t K,
-//            cudaStream_t stream) {
-//     int split_k = 1;
-//     typename Gemm::Arguments args(
-//         cutlass::gemm::GemmCoord{M, N, K},
-//         cutlass::TensorRef<cutlass::half_t, LayoutInputA>{
-//             (cutlass::half_t *)a_val, K},
-//         cutlass::TensorRef<cutlass::half_t, LayoutInputB>{
-//             (cutlass::half_t *)b_val, N},
-//         cutlass::TensorRef<cutlass::half_t, LayoutOutput>{c_val, N},
-//         cutlass::TensorRef<cutlass::half_t, LayoutOutput>{c_val, N}, {1.f,
-//         0.f},
-//         split_k);
-//     CUTLASS_CHECK(gemm(args, nullptr, stream));
-//   }
+        >;
 
-// private:
-//   Gemm gemm;
-// };
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
-using ElementAccumulator = float;
-using ElementComputeEpilogue = ElementAccumulator;
-using ElementInputA = cutlass::half_t;
-using ElementInputB = cutlass::half_t;
-using ElementOutput = cutlass::half_t;
-using LayoutInputA = cutlass::layout::RowMajor;
-using LayoutInputB = cutlass::layout::RowMajor;
-using LayoutOutput = cutlass::layout::RowMajor;
-using MMAOp = cutlass::arch::OpClassTensorOp;
-using SmArch = cutlass::arch::Sm70;
-using ShapeMMAThreadBlock = cutlass::gemm::GemmShape<128, 128, 32>;
-using ShapeMMAWarp = cutlass::gemm::GemmShape<64, 64, 32>;
-using ShapeMMAOp = cutlass::gemm::GemmShape<8, 8, 4>;
-using SwizzleThreadBlock =
-    cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>;
-using EpilogueOp = cutlass::epilogue::thread::LinearCombination<
-    ElementOutput, 128 / cutlass::sizeof_bits<ElementOutput>::value,
-    ElementAccumulator, ElementComputeEpilogue>;
-constexpr int NumStages = 2;
-
-using Gemm = cutlass::gemm::device::Gemm<
-    ElementInputA, LayoutInputA, ElementInputB, LayoutInputB, ElementOutput,
-    LayoutOutput, ElementAccumulator, MMAOp, SmArch, ShapeMMAThreadBlock,
-    ShapeMMAWarp, ShapeMMAOp, EpilogueOp, SwizzleThreadBlock, NumStages>;
-
-template <typename T, typename To, typename CompOn = float>
-class CutlassMatmul : public Matmul<T, To> {
+class Operation {
 public:
-  CutlassMatmul(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
-                bool rhs_transpose, bool output_transpose, cudaStream_t stream)
-      : Matmul<T, To>(m, n, k, lhs_transpose, rhs_transpose, output_transpose),
-        stream(stream) {}
-  virtual bool Check() override { return true; }
-  virtual void Run(const T *a_val, const T *b_val, To *c_val) override {
-    Gemm gemm;
-    int split_k = 1;
-    typename Gemm::Arguments args(
-        cutlass::gemm::GemmCoord{m, n, k},
-        cutlass::TensorRef<cutlass::half_t, LayoutInputA>{
-            (cutlass::half_t *)a_val, k},
-        cutlass::TensorRef<cutlass::half_t, LayoutInputB>{
-            (cutlass::half_t *)b_val, n},
-        cutlass::TensorRef<cutlass::half_t, LayoutOutput>{c_val, n},
-        cutlass::TensorRef<cutlass::half_t, LayoutOutput>{c_val, n}, {1.f, 0.f},
-        split_k);
-    CUTLASS_CHECK(gemm(args, nullptr, stream));
-    // wrap.Run(const_cast<T *>(a_val), const_cast<T *>(b_val), c_val, m, n, k,
-    //          stream);
-  }
-  virtual ~CutlassMatmul() = default;
+  virtual void Run() = 0;
+};
+
+template <typename Gemm> class MatmulOperation : public Operation {
+public:
+  MatmulOperation(const char *kernel_name) : kernel_name(kernel_name) {}
+
+  virtual void Run() {}
 
 private:
-  // CutlassMatmulWrap<T, To> wrap;
-  cudaStream_t stream;
+  const char *kernel_name;
+  Gemm gemm;
 };
+
+namespace matmul {
+
+class Manifest {
+public:
+  template <typename ElementInputA, typename LayoutInputA,
+            typename ElementInputB, typename LayoutInputB,
+            typename ElementOutput, typename LayoutOutput,
+            typename ElementAccumulator>
+  void append(Operation *op);
+
+private:
+  std::vector<Operation *> hhhs_nnt;
+};
+
+template <>
+void Manifest::append<cutlass::half_t, cutlass::layout::ColumnMajor,
+                      cutlass::half_t, cutlass::layout::ColumnMajor, float,
+                      cutlass::layout::RowMajor, float>(Operation *op) {
+  hhhs_nnt.push_back(op);
+}
+
+} // namesapce matmul

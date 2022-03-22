@@ -20,7 +20,7 @@
 
 using ElementInputA = cutlass::half_t;              // <- data type of elements in input matrix A
 using ElementInputB = cutlass::half_t;              // <- data type of elements in input matrix B
-using ElementOutput = float;                        // <- data type of elements in output matrix D
+using ElementOutput = cutlass::half_t;                        // <- data type of elements in output matrix D
 using ElementAccumulator = float;                   // <- data type of accumulator
 using ElementComputeEpilogue = ElementAccumulator;  // <- data type of epilogue operations
 
@@ -32,7 +32,7 @@ using CompOn = cutlass_type_to_ctype<ElementAccumulator>::type;
 // The code section below describes matrix layout of input and output matrices. Column Major for
 // Matrix A, Row Major for Matrix B and Row Major for Matrix C
 using LayoutInputA = cutlass::layout::ColumnMajor;
-using LayoutInputB = cutlass::layout::RowMajor;
+using LayoutInputB = cutlass::layout::ColumnMajor;
 using LayoutOutput = cutlass::layout::RowMajor;
 
 // This code section describes whether you want to use tensor cores or regular SIMT cores on GPU SM
@@ -65,21 +65,46 @@ using EpilogueOp = cutlass::epilogue::thread::LinearCombination<
 // Number of pipelines you want to use
 constexpr int NumStages = 2;
 
-using Gemm = cutlass::gemm::device::Gemm<ElementInputA,
-                                         LayoutInputA,
-                                         ElementInputB,
-                                         LayoutInputB,
-                                         ElementOutput,
-                                         LayoutOutput,
-                                         ElementAccumulator,
-                                         MMAOp,
-                                         SmArch,
-                                         ShapeMMAThreadBlock,
-                                         ShapeMMAWarp,
-                                         ShapeMMAOp,
-                                         EpilogueOp,
-                                         SwizzleThreadBlock,
-                                         NumStages>;
+// using Gemm = cutlass::gemm::device::Gemm<ElementInputA,
+//                                          LayoutInputA,
+//                                          ElementInputB,
+//                                          LayoutInputB,
+//                                          ElementOutput,
+//                                          LayoutOutput,
+//                                          ElementAccumulator,
+//                                          MMAOp,
+//                                          SmArch,
+//                                          ShapeMMAThreadBlock,
+//                                          ShapeMMAWarp,
+//                                          ShapeMMAOp,
+//                                          EpilogueOp,
+//                                          SwizzleThreadBlock,
+//                                          NumStages>;
+
+using Gemm = cutlass::gemm::device::Gemm<
+    cutlass::half_t, cutlass::layout::ColumnMajor,
+    cutlass::half_t, cutlass::layout::ColumnMajor,
+    cutlass::half_t, cutlass::layout::RowMajor,
+    float,
+    cutlass::arch::OpClassTensorOp,
+    cutlass::arch::Sm75,
+    cutlass::gemm::GemmShape<256, 128, 32>,
+    cutlass::gemm::GemmShape<64, 64, 32>,
+    cutlass::gemm::GemmShape<16, 8, 8>,
+    cutlass::epilogue::thread::LinearCombination<
+      cutlass::half_t,
+      8,
+      float,
+      float
+    >,
+    cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<8>,
+    2,
+    8,
+    8,
+    false,
+    cutlass::arch::OpMultiplyAdd
+    
+  >;
 
 int run() {
 
@@ -156,6 +181,9 @@ int run() {
 
   // Check the problem size is supported or not 
   cutlass::Status status = gemm_op.can_implement(arguments);
+  if (status != cutlass::Status::kSuccess) {
+    printf("gemm_op.can_implement() failed\n");
+  }
   CUTLASS_CHECK(status);
 
   cudaStream_t stream = nullptr;
@@ -176,7 +204,7 @@ int run() {
   cublasHandle_t handle;
   CUBLASCHECK(cublasCreate(&handle));
   CUBLASCHECK(cublasSetStream(handle, stream));
-  Matmul<TA, TO>* op = new CublasMatmul<TA, TO, CompOn>((int64_t)m, (int64_t)n, (int64_t)k, true, false, false, handle);
+  Matmul<TA, TO>* op = new CublasMatmul<TA, TO, CompOn>((int64_t)m, (int64_t)n, (int64_t)k, true, true, false, handle);
   op->Run((TA*)tensor_a.device_ref().data(), (TB*)tensor_b.device_ref().data(), (TO*)tensor_ref_d.device_ref().data());
   CUDACHECK(cudaDeviceSynchronize());
   
