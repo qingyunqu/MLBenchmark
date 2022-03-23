@@ -265,11 +265,9 @@ struct ${operation_name} :
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "cutlass/cutlass.h"
-#include "cutlass/library/library.h"
-#include "cutlass/library/manifest.h"
 
-#include "library_internal.h"
-#include "conv2d_operation.h"
+#include "manifest.h"
+#include "convolution/Conv2dOperation.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 """
@@ -288,7 +286,7 @@ void initialize_${configuration_name}(Manifest &manifest) {
   using Operation_${operation_name} = cutlass::conv::device::ImplicitGemmConvolution<
     ${operation_name}>;
 
-  manifest.append(new cutlass::library::Conv2dOperation<
+  manifest.append(new Conv2dOperation<
     Operation_${operation_name}>(
       "${operation_name}"));
 

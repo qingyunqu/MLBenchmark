@@ -1,7 +1,7 @@
 #include "matmul/manifest.h"
 
 int main() {
-  matmul::Manifest manifest;
+  Manifest manifest;
   manifest.append(
       new MatmulOperation<
           Operation_cutlass_tensorop_s1688gemm_f16_256x128_32x2_nn_align8>(

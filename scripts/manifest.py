@@ -34,8 +34,8 @@ class EmitOperationKindLibrary:
 */
 
 #include "cutlass/cutlass.h"
-#include "cutlass/library/library.h"
-#include "cutlass/library/manifest.h"
+
+#include "matmul/manifest.h"
 
 namespace cutlass {
 namespace library {
@@ -117,8 +117,7 @@ class EmitInterfaceLibrary:
 '''
     self.top_level_prologue = '''
 
-#include "cutlass/library/library.h"
-#include "cutlass/library/manifest.h"
+#include "manifest.h"
 
 namespace cutlass {
 \tnamespace library {

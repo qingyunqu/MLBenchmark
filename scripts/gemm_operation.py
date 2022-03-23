@@ -688,11 +688,9 @@ ${compile_guard_end}
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 #include "cutlass/arch/wmma.h"
 #include "cutlass/cutlass.h"
-#include "cutlass/library/library.h"
-#include "cutlass/library/manifest.h"
 
-#include "library_internal.h"
-#include "gemm_operation.h"
+#include "matmul/GemmOperation.h"
+#include "manifest.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
