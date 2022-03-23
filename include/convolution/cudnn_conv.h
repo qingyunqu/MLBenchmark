@@ -7,7 +7,7 @@
 #include <string>
 
 #include "../check.h"
-#include "../dtype.h"
+#include "../cuda_dtype.h"
 #include "../ops.h"
 
 template <typename T, typename To = T, typename CompOn = float>

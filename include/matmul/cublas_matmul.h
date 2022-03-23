@@ -7,7 +7,7 @@
 #include <iostream>
 
 #include "../check.h"
-#include "../dtype.h"
+#include "../cuda_dtype.h"
 #include "../ops.h"
 
 inline const char *cublasGetErrorString(cublasStatus_t status) {

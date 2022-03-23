@@ -33,14 +33,49 @@ using Operation_cutlass_tensorop_s1688gemm_f16_256x128_32x2_nn_align8 =
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Gemm operator cutlass_tensorop_s1688gemm_f16_64x128_32x2_nt_align8
+using Operation_cutlass_tensorop_s1688gemm_f16_64x128_32x2_nt_align8 =
+    cutlass::gemm::device::Gemm<
+        cutlass::half_t, cutlass::layout::ColumnMajor, cutlass::half_t,
+        cutlass::layout::ColumnMajor, float, cutlass::layout::RowMajor, float,
+        cutlass::arch::OpClassTensorOp, cutlass::arch::Sm75,
+        cutlass::gemm::GemmShape<64, 128, 32>,
+        cutlass::gemm::GemmShape<32, 64, 32>,
+        cutlass::gemm::GemmShape<16, 8, 8>,
+        cutlass::epilogue::thread::LinearCombination<float, 4, float, float>,
+        cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<8>, 2, 8, 8,
+        false, cutlass::arch::OpMultiplyAdd
+
+        >;
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 class Operation {
 public:
+  struct OperationTrait {
+    DTypeEnum element_a;
+    LayoutEnum layout_a;
+    DTypeEnum element_b;
+    LayoutEnum layout_b;
+    DTypeEnum element_c;
+    LayoutEnum layout_c;
+    DTypeEnum accumulator;
+    bool operator!=(const OperationTrait &trait) const {
+      return element_a == trait.element_a && element_b == trait.element_b &&
+             element_c == trait.element_c && layout_a == trait.layout_a &&
+             layout_b == trait.layout_b && layout_c == trait.layout_c &&
+             accumulator == trait.accumulator;
+    }
+  };
   virtual void SetArgument(int64_t m, int64_t n, int64_t k, void *a, void *b,
                            void *c) = 0;
   virtual bool Check() = 0;
   virtual void Initialize(cudaStream_t) = 0;
   virtual void Run() = 0;
   virtual const char *Name() = 0;
+  virtual const OperationTrait &Trait() = 0;
 };
 
 template <typename Gemm> class MatmulOperation : public Operation {
@@ -53,24 +88,28 @@ public:
   using LayoutC = typename Gemm::LayoutC;
   using ElementAccumulator = typename Gemm::ElementAccumulator;
 
-  MatmulOperation(const char *kernel_name) : kernel_name(kernel_name) {}
-
+  MatmulOperation(const char *kernel_name) : kernel_name(kernel_name) {
+    trait = {cutlass_type_to_dtype_v<ElementA>,
+             cutlass_layout_to_layout_v<LayoutA>,
+             cutlass_type_to_dtype_v<ElementB>,
+             cutlass_layout_to_layout_v<LayoutB>,
+             cutlass_type_to_dtype_v<ElementC>,
+             cutlass_layout_to_layout_v<LayoutC>,
+             cutlass_type_to_dtype_v<ElementAccumulator>};
+  }
   virtual void SetArgument(int64_t m, int64_t n, int64_t k, void *a, void *b,
                            void *c) {
     cutlass::gemm::GemmCoord problem_size(m, n, k);
-    bool lhs_transpose = cutlass_matrix_transpose<LayoutA>::value;
-    bool rhs_transpose = cutlass_matrix_transpose<LayoutB>::value;
-    bool output_transpose = cutlass_matrix_transpose<LayoutC>::value;
     LayoutA layoutA(k);
     LayoutB layoutB(n);
     LayoutC layoutC(n);
-    if (lhs_transpose) {
+    if (cutlass_layout_to_layout_v<LayoutA> == LayoutEnum::ColumnMajor) {
       layoutA = LayoutA(m);
     }
-    if (rhs_transpose) {
+    if (cutlass_layout_to_layout_v<LayoutB> == LayoutEnum::ColumnMajor) {
       layoutB = LayoutB(k);
     }
-    if (output_transpose) {
+    if (cutlass_layout_to_layout_v<LayoutC> == LayoutEnum::ColumnMajor) {
       layoutC = LayoutC(m);
     }
     arguments = {problem_size,
@@ -89,17 +128,24 @@ public:
   }
   virtual void Run() { CUTLASS_CHECK(gemm()); }
   virtual const char *Name() { return kernel_name; }
+  virtual const OperationTrait &Trait() { return trait; }
 
 private:
   const char *kernel_name;
   Gemm gemm;
   typename Gemm::Arguments arguments;
+  typename Operation::OperationTrait trait;
 };
 
 namespace matmul {
 
 class Manifest {
+private:
+  std::vector<Operation *> kernels;
+
 public:
+  void append(Operation *op) { kernels.push_back(op); }
+
   template <typename ElementInputA, typename LayoutInputA,
             typename ElementInputB, typename LayoutInputB,
             typename ElementOutput, typename LayoutOutput,
@@ -119,245 +165,62 @@ public:
     FillCUDABuffer(ref_c, m * n);
   }
 
-  template <typename TA, typename TB, typename TC, typename ElementAccumulator>
-  void profile_interal(std::vector<Operation *> &list, int64_t m, int64_t n,
-                       int64_t k, bool lhs_transpose, bool rhs_transpose,
-                       bool output_transpose, TA *a, TB *b, TC *c, TC *ref_c) {
+  template <typename ElementInputA, typename ElementInputB,
+            typename ElementOutput, typename ElementAccumulator>
+  void profile(int64_t m, int64_t n, int64_t k, LayoutEnum layout_a,
+               LayoutEnum layout_b, LayoutEnum layout_c) {
+    using TA = typename cutlass_type_to_ctype<ElementInputA>::type;
+    using TB = typename cutlass_type_to_ctype<ElementInputB>::type;
+    using TC = typename cutlass_type_to_ctype<ElementOutput>::type;
+    TA *a = nullptr;
+    TB *b = nullptr;
+    TC *c = nullptr;
+    TC *ref_c = nullptr;
+    init_tensor(m, n, k, a, b, c, ref_c);
+
     cudaStream_t stream = nullptr;
     cublasHandle_t handle;
     CUBLASCHECK(cublasCreate(&handle));
     CUBLASCHECK(cublasSetStream(handle, stream));
     Matmul<TA, TC> *op = new CublasMatmul<TA, TC, ElementAccumulator>(
-        m, n, k, lhs_transpose, rhs_transpose, output_transpose, handle);
+        m, n, k, layout_a == LayoutEnum::ColumnMajor,
+        layout_b == LayoutEnum::ColumnMajor,
+        layout_c == LayoutEnum::ColumnMajor, handle);
     op->Run(a, b, ref_c);
     CUDACHECK(cudaDeviceSynchronize());
-    CUBLASCHECK(cublasDestroy(handle));
     delete op;
+    CUBLASCHECK(cublasDestroy(handle));
 
-    for (auto &op : list) {
-      op->SetArgument(m, n, k, (void *)a, (void *)b, (void *)c);
-      if (!op->Check()) {
+    typename Operation::OperationTrait trait{
+        cutlass_type_to_dtype_v<ElementInputA>,     layout_a,
+        cutlass_type_to_dtype_v<ElementInputB>,     layout_b,
+        cutlass_type_to_dtype_v<ElementOutput>,     layout_c,
+        cutlass_type_to_dtype_v<ElementAccumulator>};
+    for (auto &kernel : kernels) {
+      if (kernel->Trait() != trait) {
         continue;
       }
-      op->Initialize(stream);
-      op->Run();
+      kernel->SetArgument(m, n, k, (void *)a, (void *)b, (void *)c);
+      if (!kernel->Check()) {
+        continue;
+      }
+      kernel->Initialize(stream);
+      kernel->Run();
       bool passed = CheckCUDABuffer<TC>(c, ref_c, m * n, 1e-5f);
-      std::cout << op->Name() << " : " << (passed ? "Passed" : "Failed")
+      std::cout << kernel->Name() << " : " << (passed ? "Passed" : "Failed")
                 << std::endl;
     }
+    CUDACHECK(cudaFree(a));
+    CUDACHECK(cudaFree(b));
+    CUDACHECK(cudaFree(c));
+    CUDACHECK(cudaFree(ref_c));
   }
 
-  template <typename ElementInputA, typename ElementInputB,
-            typename ElementOutput, typename ElementAccumulator>
-  void profile(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
-               bool rhs_transpose, bool output_transpose);
-
-private:
-  std::vector<Operation *> hhss_nnt;
-  std::vector<Operation *> hhss_ntt;
-  std::vector<Operation *> hhss_tnt;
-  std::vector<Operation *> hhss_ttt;
-  std::vector<Operation *> hhhs_nnt;
-  std::vector<Operation *> hhhs_ntt;
-  std::vector<Operation *> hhhs_tnt;
-  std::vector<Operation *> hhhs_ttt;
-  std::vector<Operation *> hhhh_nnt;
-  std::vector<Operation *> hhhh_ntt;
-  std::vector<Operation *> hhhh_tnt;
-  std::vector<Operation *> hhhh_ttt;
+  ~Manifest() {
+    for (auto &kernel : kernels) {
+      delete kernel;
+    }
+  }
 };
-
-// hhss
-template <>
-void Manifest::profile<cutlass::half_t, cutlass::half_t, float, float>(
-    int64_t m, int64_t n, int64_t k, bool lhs_transpose, bool rhs_transpose,
-    bool output_transpose) {
-  __half *a = nullptr;
-  __half *b = nullptr;
-  float *c = nullptr;
-  float *ref_c = nullptr;
-  init_tensor<__half, __half, float>(m, n, k, a, b, c, ref_c);
-  if (lhs_transpose && rhs_transpose) {
-    profile_interal<__half, __half, float, float>(
-        hhss_nnt, m, n, k, lhs_transpose, rhs_transpose, output_transpose, a, b,
-        c, ref_c);
-  } else if (lhs_transpose && !rhs_transpose) {
-    profile_interal<__half, __half, float, float>(
-        hhss_ntt, m, n, k, lhs_transpose, rhs_transpose, output_transpose, a, b,
-        c, ref_c);
-  } else if (!lhs_transpose && rhs_transpose) {
-    profile_interal<__half, __half, float, float>(
-        hhss_tnt, m, n, k, lhs_transpose, rhs_transpose, output_transpose, a, b,
-        c, ref_c);
-  } else {
-    profile_interal<__half, __half, float, float>(
-        hhss_ttt, m, n, k, lhs_transpose, rhs_transpose, output_transpose, a, b,
-        c, ref_c);
-  }
-  CUDACHECK(cudaFree(a));
-  CUDACHECK(cudaFree(b));
-  CUDACHECK(cudaFree(c));
-  CUDACHECK(cudaFree(ref_c));
-}
-
-template <>
-void Manifest::append<cutlass::half_t, cutlass::layout::ColumnMajor,
-                      cutlass::half_t, cutlass::layout::ColumnMajor, float,
-                      cutlass::layout::RowMajor, float>(Operation *op) {
-  hhss_nnt.push_back(op);
-}
-
-template <>
-void Manifest::append<cutlass::half_t, cutlass::layout::ColumnMajor,
-                      cutlass::half_t, cutlass::layout::RowMajor, float,
-                      cutlass::layout::RowMajor, float>(Operation *op) {
-  hhss_ntt.push_back(op);
-}
-
-template <>
-void Manifest::append<cutlass::half_t, cutlass::layout::RowMajor,
-                      cutlass::half_t, cutlass::layout::ColumnMajor, float,
-                      cutlass::layout::RowMajor, float>(Operation *op) {
-  hhss_tnt.push_back(op);
-}
-
-template <>
-void Manifest::append<cutlass::half_t, cutlass::layout::RowMajor,
-                      cutlass::half_t, cutlass::layout::RowMajor, float,
-                      cutlass::layout::RowMajor, float>(Operation *op) {
-  hhss_ttt.push_back(op);
-}
-
-// hhhs
-template <>
-void Manifest::profile<cutlass::half_t, cutlass::half_t, cutlass::half_t,
-                       float>(int64_t m, int64_t n, int64_t k,
-                              bool lhs_transpose, bool rhs_transpose,
-                              bool output_transpose) {
-  __half *a = nullptr;
-  __half *b = nullptr;
-  __half *c = nullptr;
-  __half *ref_c = nullptr;
-  init_tensor<__half, __half, __half>(m, n, k, a, b, c, ref_c);
-  if (lhs_transpose && rhs_transpose) {
-    profile_interal<__half, __half, __half, float>(
-        hhhs_nnt, m, n, k, lhs_transpose, rhs_transpose, output_transpose, a, b,
-        c, ref_c);
-  } else if (lhs_transpose && !rhs_transpose) {
-    profile_interal<__half, __half, __half, float>(
-        hhhs_ntt, m, n, k, lhs_transpose, rhs_transpose, output_transpose, a, b,
-        c, ref_c);
-  } else if (!lhs_transpose && rhs_transpose) {
-    profile_interal<__half, __half, __half, float>(
-        hhhs_tnt, m, n, k, lhs_transpose, rhs_transpose, output_transpose, a, b,
-        c, ref_c);
-  } else {
-    profile_interal<__half, __half, __half, float>(
-        hhhs_ttt, m, n, k, lhs_transpose, rhs_transpose, output_transpose, a, b,
-        c, ref_c);
-  }
-  CUDACHECK(cudaFree(a));
-  CUDACHECK(cudaFree(b));
-  CUDACHECK(cudaFree(c));
-  CUDACHECK(cudaFree(ref_c));
-}
-
-template <>
-void Manifest::append<cutlass::half_t, cutlass::layout::ColumnMajor,
-                      cutlass::half_t, cutlass::layout::ColumnMajor,
-                      cutlass::half_t, cutlass::layout::RowMajor, float>(
-    Operation *op) {
-  hhhs_nnt.push_back(op);
-}
-
-template <>
-void Manifest::append<cutlass::half_t, cutlass::layout::ColumnMajor,
-                      cutlass::half_t, cutlass::layout::RowMajor,
-                      cutlass::half_t, cutlass::layout::RowMajor, float>(
-    Operation *op) {
-  hhhs_ntt.push_back(op);
-}
-
-template <>
-void Manifest::append<cutlass::half_t, cutlass::layout::RowMajor,
-                      cutlass::half_t, cutlass::layout::ColumnMajor,
-                      cutlass::half_t, cutlass::layout::RowMajor, float>(
-    Operation *op) {
-  hhhs_tnt.push_back(op);
-}
-
-template <>
-void Manifest::append<cutlass::half_t, cutlass::layout::RowMajor,
-                      cutlass::half_t, cutlass::layout::RowMajor,
-                      cutlass::half_t, cutlass::layout::RowMajor, float>(
-    Operation *op) {
-  hhhs_ttt.push_back(op);
-}
-
-// hhhh
-template <>
-void Manifest::profile<cutlass::half_t, cutlass::half_t, cutlass::half_t,
-                       cutlass::half_t>(int64_t m, int64_t n, int64_t k,
-                                        bool lhs_transpose, bool rhs_transpose,
-                                        bool output_transpose) {
-  __half *a = nullptr;
-  __half *b = nullptr;
-  __half *c = nullptr;
-  __half *ref_c = nullptr;
-  init_tensor<__half, __half, __half>(m, n, k, a, b, c, ref_c);
-  if (lhs_transpose && rhs_transpose) {
-    profile_interal<__half, __half, __half, __half>(
-        hhhh_nnt, m, n, k, lhs_transpose, rhs_transpose, output_transpose, a, b,
-        c, ref_c);
-  } else if (lhs_transpose && !rhs_transpose) {
-    profile_interal<__half, __half, __half, __half>(
-        hhhh_ntt, m, n, k, lhs_transpose, rhs_transpose, output_transpose, a, b,
-        c, ref_c);
-  } else if (!lhs_transpose && rhs_transpose) {
-    profile_interal<__half, __half, __half, __half>(
-        hhhh_tnt, m, n, k, lhs_transpose, rhs_transpose, output_transpose, a, b,
-        c, ref_c);
-  } else {
-    profile_interal<__half, __half, __half, __half>(
-        hhhh_ttt, m, n, k, lhs_transpose, rhs_transpose, output_transpose, a, b,
-        c, ref_c);
-  }
-  CUDACHECK(cudaFree(a));
-  CUDACHECK(cudaFree(b));
-  CUDACHECK(cudaFree(c));
-  CUDACHECK(cudaFree(ref_c));
-}
-
-template <>
-void Manifest::append<cutlass::half_t, cutlass::layout::ColumnMajor,
-                      cutlass::half_t, cutlass::layout::ColumnMajor,
-                      cutlass::half_t, cutlass::layout::RowMajor,
-                      cutlass::half_t>(Operation *op) {
-  hhhh_nnt.push_back(op);
-}
-
-template <>
-void Manifest::append<cutlass::half_t, cutlass::layout::ColumnMajor,
-                      cutlass::half_t, cutlass::layout::RowMajor,
-                      cutlass::half_t, cutlass::layout::RowMajor,
-                      cutlass::half_t>(Operation *op) {
-  hhhh_ntt.push_back(op);
-}
-
-template <>
-void Manifest::append<cutlass::half_t, cutlass::layout::RowMajor,
-                      cutlass::half_t, cutlass::layout::ColumnMajor,
-                      cutlass::half_t, cutlass::layout::RowMajor,
-                      cutlass::half_t>(Operation *op) {
-  hhhh_tnt.push_back(op);
-}
-
-template <>
-void Manifest::append<cutlass::half_t, cutlass::layout::RowMajor,
-                      cutlass::half_t, cutlass::layout::RowMajor,
-                      cutlass::half_t, cutlass::layout::RowMajor,
-                      cutlass::half_t>(Operation *op) {
-  hhhh_ttt.push_back(op);
-}
 
 } // namesapce matmul
