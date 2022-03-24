@@ -157,6 +157,7 @@ template <typename T>
 inline bool CheckCUDABuffer(T* first, T* second, size_t size, float eps) {
   T* h_first = (T*)malloc(size * sizeof(T));
   T* h_second = (T*)malloc(size * sizeof(T));
+  CUDACHECK(cudaDeviceSynchronize());
   CUDACHECK(cudaMemcpy(h_first, first, size * sizeof(T), cudaMemcpyDeviceToHost));
   CUDACHECK(cudaMemcpy(h_second, second, size * sizeof(T), cudaMemcpyDeviceToHost));
   CUDACHECK(cudaDeviceSynchronize());

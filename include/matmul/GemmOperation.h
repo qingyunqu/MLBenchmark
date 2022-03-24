@@ -29,9 +29,10 @@ public:
              cutlass_layout_to_layout_v<LayoutC>,
              cutlass_type_to_dtype_v<ElementAccumulator>};
   }
+
   virtual void SetArgument(int64_t m, int64_t n, int64_t k, void *a, void *b,
-                           void *c) {
-    cutlass::gemm::GemmCoord problem_size(m, n, k);
+                           void *c) override {
+    typename cutlass::gemm::GemmCoord problem_size(m, n, k);
     LayoutA layoutA(k);
     LayoutB layoutB(n);
     LayoutC layoutC(n);
@@ -52,14 +53,20 @@ public:
                  {(ElementAccumulator)1, (ElementAccumulator)0},
                  /*split_k_slices=*/1};
   }
-  virtual bool Check() {
+
+  virtual bool Check() override {
     return gemm.can_implement(arguments) == cutlass::Status::kSuccess;
   }
-  virtual void Initialize(cudaStream_t stream, void *workspace) {
+
+  virtual int64_t GetWorkspaceSize() override { return 0; }
+
+  virtual void Initialize(cudaStream_t stream, void *workspace) override {
     CUTLASS_CHECK(gemm.initialize(arguments, workspace, stream));
   }
-  virtual void Run() { CUTLASS_CHECK(gemm()); }
-  virtual const OperationTrait &Trait() { return trait; }
+
+  virtual void Run() override { CUTLASS_CHECK(gemm()); }
+
+  virtual const OperationTrait &Trait() override { return trait; }
 
 private:
   Gemm gemm;

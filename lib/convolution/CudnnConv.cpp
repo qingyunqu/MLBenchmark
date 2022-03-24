@@ -99,3 +99,4 @@ CudnnConv<T, To, CompOn>::~CudnnConv() {
 // instantiate
 template class CudnnConv<float, float, float>;
 template class CudnnConv<__half, __half, float>;
+template class CudnnConv<__half, __half, __half>;
