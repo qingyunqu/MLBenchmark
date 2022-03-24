@@ -1,7 +1,8 @@
 #include "benchmark.h"
+#include "matmul/CublasMatmul.h"
 #include "matmul/check_matmul.h"
-#include "matmul/cublas_matmul.h"
 #include "util.h"
+#include <iostream>
 #include <stdio.h>
 #include <string>
 
@@ -52,7 +53,8 @@ int main(int argc, char *argv[]) {
   bool test = false;
   // bool test = std::string(argv[1]) == "0" ? true : false;
 
-  Run<__half, __half, float>(atoi(argv[1]), atoi(argv[2]), atoi(argv[3]), false, false, true, 1e-2f, /*test=*/false);
+  Run<__half, __half, float>(atoi(argv[1]), atoi(argv[2]), atoi(argv[3]), false,
+                             false, true, 1e-2f, /*test=*/false);
 
   // Ti To CompOn
   // for (bool lhs: {false, true}) {

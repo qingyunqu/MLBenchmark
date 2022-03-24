@@ -124,8 +124,8 @@ int run() {
     return 0;
   }
 
-  const int m = 4096;
-  const int n = 4096;
+  const int m = 1024;
+  const int n = 2048;
   const int k = 4096;
 
   // Create a tuple of problem size for matrix multiplication
@@ -162,13 +162,17 @@ int run() {
 
   // Create a tuple of gemm kernel arguments. This is later passed as arguments to launch
   // instantiated CUTLASS kernel
-  typename Gemm::Arguments arguments{problem_size,  // <- problem size of matrix multiplication
-                                     tensor_a.device_ref(),  // <- reference to matrix A on device
-                                     tensor_b.device_ref(),  // <- reference to matrix B on device
-                                     tensor_c.device_ref(),  // <- reference to matrix C on device
-                                     tensor_d.device_ref(),  // <- reference to matrix D on device
-                                     {alpha, beta},          // <- tuple of alpha and beta
-                                     split_k_slices};        // <- k-dimension split factor
+  typename Gemm::Arguments arguments{
+      problem_size, // <- problem size of matrix multiplication
+      {tensor_a.device_ref().data(),
+       LayoutInputA(m)}, // <- reference to matrix A on device
+      {tensor_b.device_ref().data(),
+       LayoutInputB(k)},     // <- reference to matrix B on device
+      tensor_c.device_ref(), // <- reference to matrix C on device
+      {tensor_d.device_ref().data(),
+       LayoutOutput(n)}, // <- reference to matrix D on device
+      {alpha, beta},     // <- tuple of alpha and beta
+      split_k_slices};   // <- k-dimension split factor
 
   // Using the arguments, query for extra workspace required for matrix multiplication computation
   size_t workspace_size = Gemm::get_workspace_size(arguments);

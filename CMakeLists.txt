@@ -42,5 +42,6 @@ add_subdirectory(${REPO_ROOT}/src/convolution)
 # file(GLOB_RECURSE cutlass_gemm_src CONFIGURE_DEPENDS "${GEN_ROOT}/gemm/*.cu")
 # add_library(cutlass_gemm_library ${cutlass_gemm_src})
 
+add_subdirectory(${REPO_ROOT}/src/matmul)
 # add_executable(gemm "${REPO_ROOT}/src/matmul/gemm.cu")
 # target_link_libraries(gemm bench_CUDA_LIBRARIES cutlass_gemm_library)
