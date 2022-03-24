@@ -1,6 +1,6 @@
 #include "benchmark.h"
+#include "convolution/CudnnConv.h"
 #include "convolution/check_conv.h"
-#include "convolution/cudnn_conv.h"
 #include "util.h"
 #include <iostream>
 #include <stdio.h>

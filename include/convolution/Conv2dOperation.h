@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../manifest.h"
+#include "Operation.h"
 
 template <typename Conv2d> class Conv2dOperation : public Operation {
 public:

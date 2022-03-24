@@ -1,5 +1,7 @@
 #pragma once
 
+#include "stdint.h"
+
 enum class DTypeEnum : uint32_t {
   Invalid = 0,
   Float32 = 1,

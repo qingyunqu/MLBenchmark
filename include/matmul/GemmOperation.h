@@ -1,16 +1,12 @@
 #pragma once
 
-#include <cuda_runtime.h>
-
 #include "cutlass/cutlass.h"
 #include "cutlass/gemm/device/gemm.h"
 #include "cutlass/tensor_ref.h"
 
-#include "../check.h"
-#include "../cutlass_dtype.h"
-#include "../manifest.h"
-#include "../ops.h"
-#include "../util.h"
+#include "Operation.h"
+#include "check.h"
+#include "cutlass_dtype.h"
 
 template <typename Gemm> class GemmOperation : public Operation {
 public:
