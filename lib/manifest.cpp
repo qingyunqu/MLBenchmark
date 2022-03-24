@@ -38,9 +38,13 @@ void Manifest::profile(int64_t m, int64_t n, int64_t k, LayoutEnum layout_a,
   CUBLASCHECK(cublasDestroy(handle));
 
   typename Operation::OperationTrait trait{
-      cutlass_type_to_dtype_v<ElementInputA>,     layout_a,
-      cutlass_type_to_dtype_v<ElementInputB>,     layout_b,
-      cutlass_type_to_dtype_v<ElementOutput>,     layout_c,
+      OperationEnum::Matmul,
+      cutlass_type_to_dtype_v<ElementInputA>,
+      layout_a,
+      cutlass_type_to_dtype_v<ElementInputB>,
+      layout_b,
+      cutlass_type_to_dtype_v<ElementOutput>,
+      layout_c,
       cutlass_type_to_dtype_v<ElementAccumulator>};
   for (auto &kernel : kernels) {
     if (kernel->Trait() != trait) {
@@ -50,9 +54,9 @@ void Manifest::profile(int64_t m, int64_t n, int64_t k, LayoutEnum layout_a,
     if (!kernel->Check()) {
       continue;
     }
-    kernel->Initialize(stream);
+    kernel->Initialize(stream, nullptr);
     kernel->Run();
-    bool passed = CheckCUDABuffer<TC>(c, ref_c, m * n, 1e-2f);
+    bool passed = CheckCUDABuffer<TC>(c, ref_c, m * n, 1e-1f);
     std::cout << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
     float time = benchmark<Operation>(kernel, stream);
     std::cout << ", " << time << std::endl;

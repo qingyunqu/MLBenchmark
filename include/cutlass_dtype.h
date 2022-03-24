@@ -43,6 +43,9 @@ template <> struct cutlass_layout_to_layout<cutlass::layout::ColumnMajor> {
 template <> struct cutlass_layout_to_layout<cutlass::layout::RowMajor> {
   static constexpr LayoutEnum value = LayoutEnum::RowMajor;
 };
+template <> struct cutlass_layout_to_layout<cutlass::layout::TensorNHWC> {
+  static constexpr LayoutEnum value = LayoutEnum::NHWC;
+};
 
 template <typename T>
 inline constexpr LayoutEnum cutlass_layout_to_layout_v =

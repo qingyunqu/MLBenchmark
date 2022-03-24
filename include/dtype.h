@@ -1,6 +1,6 @@
 #pragma once
 
-#include "stdint.h"
+#include <stdint.h>
 
 enum class DTypeEnum : uint32_t {
   Invalid = 0,
@@ -20,4 +20,12 @@ enum class LayoutEnum : uint32_t {
   ColumnMajor = 2,
   NCHW = 3,
   NHWC = 4
+};
+
+enum class OperationEnum : uint32_t {
+  Invalid = 0,
+  Matmul = 1,
+  MatmulBiasRelu = 2,
+  Conv2d = 3,
+  Conv2dBiasRelu = 4
 };

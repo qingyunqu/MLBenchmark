@@ -20,7 +20,8 @@ public:
   using ElementAccumulator = typename Gemm::ElementAccumulator;
 
   GemmOperation(const char *kernel_name) : Operation(kernel_name) {
-    trait = {cutlass_type_to_dtype_v<ElementA>,
+    trait = {OperationEnum::Matmul,
+             cutlass_type_to_dtype_v<ElementA>,
              cutlass_layout_to_layout_v<LayoutA>,
              cutlass_type_to_dtype_v<ElementB>,
              cutlass_layout_to_layout_v<LayoutB>,
@@ -54,8 +55,8 @@ public:
   virtual bool Check() {
     return gemm.can_implement(arguments) == cutlass::Status::kSuccess;
   }
-  virtual void Initialize(cudaStream_t stream) {
-    CUTLASS_CHECK(gemm.initialize(arguments, nullptr, stream));
+  virtual void Initialize(cudaStream_t stream, void *workspace) {
+    CUTLASS_CHECK(gemm.initialize(arguments, workspace, stream));
   }
   virtual void Run() { CUTLASS_CHECK(gemm()); }
   virtual const OperationTrait &Trait() { return trait; }

@@ -14,7 +14,17 @@ int main() {
   cutlass::library::initialize_all_gemm_operations(manifest);
 
   manifest.template profile<__half, __half, float, float>(
-      1024, 1024, 1024, LayoutEnum::ColumnMajor, LayoutEnum::ColumnMajor,
+      2048, 2048, 2048, LayoutEnum::ColumnMajor, LayoutEnum::ColumnMajor,
+      LayoutEnum::RowMajor);
+  manifest.template profile<__half, __half, float, float>(
+      2048, 2048, 2048, LayoutEnum::RowMajor, LayoutEnum::RowMajor,
+      LayoutEnum::RowMajor);
+
+  manifest.template profile<__half, __half, __half, float>(
+      2048, 2048, 2048, LayoutEnum::ColumnMajor, LayoutEnum::ColumnMajor,
+      LayoutEnum::RowMajor);
+  manifest.template profile<__half, __half, __half, float>(
+      2048, 2048, 2048, LayoutEnum::RowMajor, LayoutEnum::RowMajor,
       LayoutEnum::RowMajor);
   return 0;
 }

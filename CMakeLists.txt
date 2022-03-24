@@ -36,6 +36,10 @@ file(GLOB_RECURSE bench_src CONFIGURE_DEPENDS
     "${REPO_ROOT}/lib/**/*.cpp")
 add_library(bench STATIC ${bench_src})
 
+# cutlass generated conv2d
+file(GLOB_RECURSE cutlass_conv2d_src CONFIGURE_DEPENDS "${GEN_ROOT}/conv2d/*.cu")
+add_library(cutlass_conv2d_library ${cutlass_conv2d_src})
+
 # convolution
 add_subdirectory(${REPO_ROOT}/src/convolution)
 
