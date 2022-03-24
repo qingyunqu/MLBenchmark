@@ -1,8 +1,12 @@
 #pragma once
 
+#include <cuda_fp16.h>
+
 #include "./dtype.h"
 
 #include "cutlass/cutlass.h"
+#include "cutlass/layout/layout.h"
+#include "cutlass/tensor_ref.h"
 
 // cutlass_type_to_ctype
 template <typename T> struct cutlass_type_to_ctype {};

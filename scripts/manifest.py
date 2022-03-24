@@ -35,7 +35,7 @@ class EmitOperationKindLibrary:
 
 #include "cutlass/cutlass.h"
 
-#include "matmul/manifest.h"
+#include "manifest.h"
 
 namespace cutlass {
 namespace library {

@@ -31,7 +31,7 @@ public:
     }
   };
 
-  void Operation(const char *kernel_name) : kernel_name(kernel_name) {}
+  Operation(const char *kernel_name) : kernel_name(kernel_name) {}
   virtual void SetArgument(int64_t m, int64_t n, int64_t k, void *a, void *b,
                            void *c) = 0;
   virtual bool Check() = 0;
