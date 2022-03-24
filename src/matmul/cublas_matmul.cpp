@@ -37,7 +37,7 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
     }
   } else {
     // benchmark
-    float time = benchmark<T, To>(op, stream, a, b, c);
+    float time = benchmark<Op<T, To>>(op, stream, a, b, c);
     printf("%dx%dx%d, l:%d, r:%d, o:%d, time: %f ms\n", m, n, k, lhs_transpose,
            rhs_transpose, output_transpose, time);
   }

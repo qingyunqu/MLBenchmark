@@ -7,6 +7,7 @@
 #include "Operation.h"
 #include "check.h"
 #include "cutlass_dtype.h"
+#include <iostream>
 
 template <typename Gemm> class GemmOperation : public Operation {
 public:

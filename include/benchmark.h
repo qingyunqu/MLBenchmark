@@ -8,8 +8,8 @@
 constexpr int warm_up = 100;
 constexpr int run_time = 200;
 
-template <typename T, typename To, typename... Args>
-float benchmark(Op<T, To> *op, cudaStream_t stream, Args... args) {
+template <typename Op, typename... Args>
+float benchmark(Op *op, cudaStream_t stream, Args... args) {
   cudaEvent_t start, stop;
   CUDACHECK(cudaEventCreate(&start));
   CUDACHECK(cudaEventCreate(&stop));

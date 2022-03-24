@@ -46,7 +46,7 @@ void Run(const std::string &layout, int64_t N, int64_t iH, int64_t iW,
     }
   } else {
     // benchmark
-    float time = benchmark<T, To>(op, stream, a, b, c);
+    float time = benchmark<Op<T, To>>(op, stream, a, b, c);
     printf("layout: %s, N: %d, iH: %d, iW %d, iC: %d, oC: %d, kH: %d, kW: %d, "
            "oH: %d, oW: %d, "
            "strideH: %d, strideW: %d, paddingH: %d, paddingW: %d, dilateH: %d, "

@@ -136,8 +136,8 @@ template <typename T>
 inline bool EXPECT_NEAR(T first, T second, float eps) {
   float diff = static_cast<float>(first) - static_cast<float>(second);
   if (std::abs(diff) > eps) {
-    printf("    diff error, first: %f, second: %f\n", static_cast<float>(first),
-           static_cast<float>(second));
+    fprintf(stderr, "    diff error, first: %f, second: %f\n",
+            static_cast<float>(first), static_cast<float>(second));
     return false;
   }
   return true;
