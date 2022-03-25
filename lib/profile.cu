@@ -35,7 +35,7 @@ template <typename T> __global__ void sigmoid(T *result, int64_t size) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id < size) {
     result[id] =
-        result[id] >= static_cast<T>(0) ? result[id] : static_cast<T>(0);
+        static_cast<T>(1.f / (1.f + exp(-static_cast<double>(result[id]))));
   }
 }
 

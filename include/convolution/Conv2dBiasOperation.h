@@ -43,6 +43,6 @@ public:
                        {(ElementB *)filter, layoutB},
                        {(ElementC *)bias, LayoutC()},
                        {(ElementC *)output, layoutC},
-                       {(ElementAccumulator)1}};
+                       {(ElementAccumulator)1, (ElementAccumulator)0}};
   }
 };
