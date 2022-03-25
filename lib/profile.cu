@@ -14,6 +14,31 @@
 #include "cutlass/cutlass.h"
 #include "cutlass/util/device_memory.h"
 
+template <typename T>
+__global__ void bias_add(T *bias, T *result, int64_t m, int64_t n) {
+  int row = blockIdx.x * blockDim.x + threadIdx.x;
+  int column = blockIdx.y * blockDim.y + threadIdx.y;
+  if (row < n && column < m) {
+    result[column * n + row] += bias[row];
+  }
+}
+
+template <typename T> __global__ void relu(T *result, int64_t size) {
+  int id = blockIdx.x * blockDim.x + threadIdx.x;
+  if (id < size) {
+    result[id] =
+        result[id] >= static_cast<T>(0) ? result[id] : static_cast<T>(0);
+  }
+}
+
+template <typename T> __global__ void sigmoid(T *result, int64_t size) {
+  int id = blockIdx.x * blockDim.x + threadIdx.x;
+  if (id < size) {
+    result[id] =
+        result[id] >= static_cast<T>(0) ? result[id] : static_cast<T>(0);
+  }
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // Gemm
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -100,23 +125,6 @@ template void profile_gemm<__half, __half, __half, __half>(
 // GemmBias
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
-__global__ void bias_add(T *bias, T *result, int64_t m, int64_t n) {
-  int row = blockIdx.x * blockDim.x + threadIdx.x;
-  int column = blockIdx.y * blockDim.y + threadIdx.y;
-  if (row < n && column < m) {
-    result[column * n + row] += bias[row];
-  }
-}
-
-template <typename T> __global__ void relu(T *result, int64_t size) {
-  int id = blockIdx.x * blockDim.x + threadIdx.x;
-  if (id < size) {
-    result[id] =
-        result[id] >= static_cast<T>(0) ? result[id] : static_cast<T>(0);
-  }
-}
-
 template <typename TA, typename TB, typename TC, typename CompOn>
 void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
                        LayoutEnum layout_a, LayoutEnum layout_b,
@@ -158,6 +166,9 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
   after_kernel_launch();
   if (epilogue == EpilogueEnum::Relu) {
     relu<TC><<<(m * n + 256 - 1) / 256, 256, 0, stream>>>(ref_d, m * n);
+    after_kernel_launch();
+  } else if (epilogue == EpilogueEnum::Sigmoid) {
+    sigmoid<TC><<<(m * n + 256 - 1) / 256, 256, 0, stream>>>(ref_d, m * n);
     after_kernel_launch();
   }
   CUDACHECK(cudaDeviceSynchronize());
@@ -344,6 +355,10 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
   after_kernel_launch();
   if (epilogue == EpilogueEnum::Relu) {
     relu<TC><<<(N * oH * oW * oC + 256 - 1) / 256, 256, 0, stream>>>(
+        ref_output, N * oH * oW * oC);
+    after_kernel_launch();
+  } else if (epilogue == EpilogueEnum::Sigmoid) {
+    sigmoid<TC><<<(N * oH * oW * oC + 256 - 1) / 256, 256, 0, stream>>>(
         ref_output, N * oH * oW * oC);
     after_kernel_launch();
   }

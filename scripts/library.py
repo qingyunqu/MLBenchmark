@@ -431,18 +431,21 @@ class EpilogueFunctor(enum.Enum):
   LinearCombination = enum_auto()
   LinearCombinationClamp = enum_auto()
   LinearCombinationRelu = enum_auto()
+  LinearCombinationSigmoid = enum_auto()
 
 #
 EpilogueFunctorTag = {
   EpilogueFunctor.LinearCombination: 'cutlass::epilogue::thread::LinearCombination',
   EpilogueFunctor.LinearCombinationClamp: 'cutlass::epilogue::thread::LinearCombinationClamp',
   EpilogueFunctor.LinearCombinationRelu: 'cutlass::epilogue::thread::LinearCombinationRelu',
+  EpilogueFunctor.LinearCombinationSigmoid: 'cutlass::epilogue::thread::LinearCombinationSigmoid',
 }
 
 #
 EpilogueFunctorStr = {
   EpilogueFunctor.LinearCombination: 'EpilogueEnum::None',
   EpilogueFunctor.LinearCombinationRelu: 'EpilogueEnum::Relu',
+  EpilogueFunctor.LinearCombinationSigmoid: 'EpilogueEnum::Sigmoid',
 }
 
 #

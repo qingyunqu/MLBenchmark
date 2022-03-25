@@ -30,4 +30,9 @@ enum class OperationEnum : uint32_t {
   Conv2dBias = 5,
 };
 
-enum class EpilogueEnum : uint32_t { None = 0, Relu = 1 };
+enum class EpilogueEnum : uint32_t {
+  None = 0,
+  Relu = 1,
+  Grelu = 2,
+  Sigmoid = 3,
+};
