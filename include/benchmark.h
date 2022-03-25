@@ -5,8 +5,8 @@
 #include "check.h"
 #include "ops.h"
 
-constexpr int warm_up = 10;
-constexpr int run_time = 20;
+constexpr int warm_up = 50;
+constexpr int run_time = 50;
 
 template <typename Op, typename... Args>
 float benchmark(Op *op, cudaStream_t stream, Args... args) {

@@ -1,7 +1,7 @@
 #include "benchmark.h"
 #include "matmul/CublasMatmul.h"
 #include "matmul/check_matmul.h"
-#include "util.h"
+#include "util/util.h"
 #include <iostream>
 #include <stdio.h>
 #include <string>

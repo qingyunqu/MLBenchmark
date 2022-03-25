@@ -15,7 +15,7 @@
 #include "cutlass_dtype.h"
 #include "matmul/check_matmul.h"
 #include "matmul/cublas_matmul.h"
-#include "util.h"
+#include "util/util.h"
 #include <memory>
 
 using ElementInputA = cutlass::half_t;              // <- data type of elements in input matrix A

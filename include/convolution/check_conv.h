@@ -7,7 +7,7 @@
 #include <string>
 
 #include "../check.h"
-#include "../util.h"
+#include "util/util.h"
 
 template <typename T, typename To, typename CompType = float>
 bool CheckConv(T *input, T *filter, To *output, const std::string &layout,

@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 #include "../check.h"
-#include "../util.h"
+#include "util/util.h"
 
 template <typename T, typename To, typename CompOn = float>
 bool CheckMatmul(const T *d_A, const T *d_B, To *d_C, int64_t m, int64_t n,
