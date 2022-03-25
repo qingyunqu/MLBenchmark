@@ -1,9 +1,9 @@
-#include "manifest.h"
 #include "Operation.h"
 #include "benchmark.h"
 #include "check.h"
 #include "convolution/CudnnConv.h"
 #include "cutlass_dtype.h"
+#include "manifest.h"
 #include "matmul/CublasMatmul.h"
 #include "util.h"
 
@@ -12,6 +12,15 @@
 
 #include "cutlass/cutlass.h"
 #include "cutlass/util/device_memory.h"
+
+template <typename T>
+__global__ void bias_add(T *bias, T *result, int64_t m, int64_t n) {
+  int row = blockIdx.x * blockDim.x + threadIdx.x;
+  int column = blockIdx.y * blockDim.y + threadIdx.y;
+  if (row < n && column < m) {
+    result[column * n + row] += bias[row];
+  }
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // Gemm
@@ -130,9 +139,10 @@ void Manifest::profile_gemm_bias(int64_t m, int64_t n, int64_t k,
       layout_b == LayoutEnum::ColumnMajor, layout_c == LayoutEnum::ColumnMajor,
       handle);
   op->Run(a, b, ref_d);
+  dim3 block(16, 16);
+  dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y);
+  bias_add<TC><<<grid, block, 0, stream>>>(c, ref_d, m, n);
   CUDACHECK(cudaDeviceSynchronize());
-
-  float cublas_time = benchmark<Op<TA, TC>>(op, stream, a, b, ref_d);
 
   typename Operation::OperationTrait trait{
       OperationEnum::MatmulBias,
@@ -156,7 +166,7 @@ void Manifest::profile_gemm_bias(int64_t m, int64_t n, int64_t k,
     bool passed = CheckCUDABuffer<TC>(d, ref_d, m * n, 1e-1f);
     std::cout << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
     float time = benchmark<Operation>(kernel, stream);
-    std::cout << ", " << time << ", " << cublas_time << std::endl;
+    std::cout << ", " << time << std::endl;
   }
 
   CUDACHECK(cudaFree(a));

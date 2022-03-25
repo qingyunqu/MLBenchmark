@@ -32,7 +32,8 @@ include_directories("${CUTLASS_ROOT}/include")
 include_directories("${CUTLASS_ROOT}/tools/util/include")
 
 # bench src
-file(GLOB_RECURSE bench_src CONFIGURE_DEPENDS 
+file(GLOB_RECURSE bench_src CONFIGURE_DEPENDS
+    "${REPO_ROOT}/lib/*.cu"
     "${REPO_ROOT}/lib/*.cpp"
     "${REPO_ROOT}/lib/**/*.cpp")
 add_library(bench STATIC ${bench_src})
