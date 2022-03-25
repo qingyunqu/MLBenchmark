@@ -659,7 +659,7 @@ ${compile_guard_end}
 """,
       GemmKind.GemmBias: """
 ${compile_guard_start}
-  manifest.append(new ${gemm_kind}<Operation_${operation_name}>("${operation_name}"));
+  manifest.append(new ${gemm_kind}<Operation_${operation_name}>("${operation_name}", ${epilogue_enum}));
 ${compile_guard_end}
 """,
       GemmKind.Sparse: """
@@ -699,7 +699,7 @@ ${compile_guard_end}
 #include "cutlass/arch/wmma.h"
 #include "cutlass/cutlass.h"
 
-#include "matmul/GemmOperation.h"
+#include "matmul/${gemm_kind}.h"
 #include "Manifest.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -733,8 +733,8 @@ void initialize_${configuration_name}(Manifest &manifest) {
 
   def __enter__(self):
     self.configuration_file = open(self.configuration_path, "w")
-    self.configuration_file.write(self.header_template)
 
+    self.header_templates = []
     self.instance_definitions = []
     self.instance_wrappers = []
 
@@ -744,6 +744,10 @@ void initialize_${configuration_name}(Manifest &manifest) {
   def emit(self, operation):
     emitter = self.instance_emitter[operation.gemm_kind]()
 
+    self.header_templates.append(SubstituteTemplate(self.header_template, {
+      'gemm_kind': self.gemm_kind_wrappers[operation.gemm_kind]
+      }))
+
     self.operations.append(operation)
 
     self.instance_definitions.append(emitter.emit(operation))
@@ -752,6 +756,7 @@ void initialize_${configuration_name}(Manifest &manifest) {
       'configuration_name': self.configuration_name,
       'operation_name': operation.procedural_name(),
       'gemm_kind': self.gemm_kind_wrappers[operation.gemm_kind],
+      'epilogue_enum': EpilogueFunctorStr[operation.epilogue_functor],
       'compile_guard_start': SubstituteTemplate(self.wmma_guard_start, {'sm_number': str(operation.arch)}) \
         if operation.tile_description.math_instruction.opcode_class == OpcodeClass.WmmaTensorOp else "",
       'compile_guard_end': "#endif" \
@@ -759,6 +764,8 @@ void initialize_${configuration_name}(Manifest &manifest) {
       }))
 
   def __exit__(self, exception_type, exception_value, traceback):
+    for template in self.header_templates:
+      self.configuration_file.write(template)
 
     # Write instance definitions in top-level namespace
     for instance_definition in self.instance_definitions:

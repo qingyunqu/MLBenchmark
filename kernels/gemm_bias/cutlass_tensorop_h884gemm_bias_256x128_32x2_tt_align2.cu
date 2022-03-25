@@ -7,7 +7,7 @@
 #include "cutlass/arch/wmma.h"
 #include "cutlass/cutlass.h"
 
-#include "matmul/GemmOperation.h"
+#include "matmul/GemmBiasOperation.h"
 #include "Manifest.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -52,7 +52,7 @@ void initialize_cutlass_tensorop_h884gemm_bias_256x128_32x2_tt_align2(Manifest &
 
 
 
-  manifest.append(new GemmBiasOperation<Operation_cutlass_tensorop_h884gemm_bias_256x128_32x2_tt_align2>("cutlass_tensorop_h884gemm_bias_256x128_32x2_tt_align2"));
+  manifest.append(new GemmBiasOperation<Operation_cutlass_tensorop_h884gemm_bias_256x128_32x2_tt_align2>("cutlass_tensorop_h884gemm_bias_256x128_32x2_tt_align2", EpilogueEnum::None));
 
 
 

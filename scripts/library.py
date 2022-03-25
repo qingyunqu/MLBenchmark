@@ -440,6 +440,12 @@ EpilogueFunctorTag = {
 }
 
 #
+EpilogueFunctorStr = {
+  EpilogueFunctor.LinearCombination: 'EpilogueEnum::None',
+  EpilogueFunctor.LinearCombinationRelu: 'EpilogueEnum::Relu',
+}
+
+#
 class EpilogueScaleType(enum.Enum):
   Default = enum_auto()
   NoBetaScaling = enum_auto()
