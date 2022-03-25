@@ -35,7 +35,7 @@ public:
                            int64_t kW, int64_t strideH, int64_t strideW,
                            int64_t paddingH, int64_t paddingW,
                            int64_t dilationH, int64_t dilationW, void *input,
-                           void *filter, void *output) {
+                           void *filter, void *bias, void *output) {
     assert(false && "should not reach this");
   }
   virtual bool Check() = 0;

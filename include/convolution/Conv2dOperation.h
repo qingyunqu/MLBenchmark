@@ -19,9 +19,25 @@ public:
   using LayoutC = typename Conv2d::LayoutC;
   using ElementAccumulator = typename Conv2d::ElementAccumulator;
 
-  Conv2dOperation(const char *kernel_name) : Operation(kernel_name) {
+  Conv2dOperation(const char *kernel_name,
+                  EpilogueEnum epilogue_enum = EpilogueEnum::None)
+      : Operation(kernel_name) {
     trait = {OperationEnum::Conv2d,
-             EpilogueEnum::None,
+             epilogue_enum,
+             cutlass_type_to_dtype_v<ElementA>,
+             cutlass_layout_to_layout_v<LayoutA>,
+             cutlass_type_to_dtype_v<ElementB>,
+             cutlass_layout_to_layout_v<LayoutB>,
+             cutlass_type_to_dtype_v<ElementC>,
+             cutlass_layout_to_layout_v<LayoutC>,
+             cutlass_type_to_dtype_v<ElementAccumulator>};
+  }
+
+  Conv2dOperation(const char *kernel_name, OperationEnum op_enum,
+                  EpilogueEnum epilogue_enum)
+      : Operation(kernel_name) {
+    trait = {op_enum,
+             epilogue_enum,
              cutlass_type_to_dtype_v<ElementA>,
              cutlass_layout_to_layout_v<LayoutA>,
              cutlass_type_to_dtype_v<ElementB>,
@@ -36,7 +52,7 @@ public:
                            int64_t kW, int64_t strideH, int64_t strideW,
                            int64_t paddingH, int64_t paddingW,
                            int64_t dilationH, int64_t dilationW, void *input,
-                           void *filter, void *output) override {
+                           void *filter, void *bias, void *output) override {
     cutlass::Tensor4DCoord input_size(N, iH, iW, iC);
     cutlass::Tensor4DCoord filter_size(oC, kH, kW, iC);
     cutlass::Tensor4DCoord output_size(N, oH, oW, oC);
@@ -55,7 +71,7 @@ public:
     arguments = {problem_size,
                  {(ElementA *)input, layoutA},
                  {(ElementB *)filter, layoutB},
-                 {(ElementC *)output, layoutC},
+                 {(ElementC *)bias, layoutC},
                  {(ElementC *)output, layoutC},
                  {(ElementAccumulator)1, (ElementAccumulator)0}};
   }

@@ -34,7 +34,8 @@
       cutlass::half_t,
       8,
       float,
-      float
+      float,
+      cutlass::epilogue::thread::ScaleType::Default
     >,
     cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<4>, // cutlass::gemm::threadblock::GemmSplitKIdentityThreadblockSwizzle<>,
     2,
@@ -66,7 +67,7 @@ void initialize_cutlass_tensorop_f16_s884fprop_analytic_f16_256x128_32x2_nhwc_al
 
   manifest.append(new Conv2dOperation<
     Operation_cutlass_tensorop_f16_s884fprop_analytic_f16_256x128_32x2_nhwc_align8>(
-      "cutlass_tensorop_f16_s884fprop_analytic_f16_256x128_32x2_nhwc_align8"));
+      "cutlass_tensorop_f16_s884fprop_analytic_f16_256x128_32x2_nhwc_align8", EpilogueEnum::None));
 
 
 }

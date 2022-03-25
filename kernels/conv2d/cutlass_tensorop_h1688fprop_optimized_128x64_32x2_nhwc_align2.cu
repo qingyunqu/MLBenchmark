@@ -34,7 +34,8 @@
       cutlass::half_t,
       2,
       cutlass::half_t,
-      cutlass::half_t
+      cutlass::half_t,
+      cutlass::epilogue::thread::ScaleType::Default
     >,
     cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<4>, // cutlass::gemm::threadblock::GemmSplitKIdentityThreadblockSwizzle<>,
     2,
@@ -66,7 +67,7 @@ void initialize_cutlass_tensorop_h1688fprop_optimized_128x64_32x2_nhwc_align2(Ma
 
   manifest.append(new Conv2dOperation<
     Operation_cutlass_tensorop_h1688fprop_optimized_128x64_32x2_nhwc_align2>(
-      "cutlass_tensorop_h1688fprop_optimized_128x64_32x2_nhwc_align2"));
+      "cutlass_tensorop_h1688fprop_optimized_128x64_32x2_nhwc_align2", EpilogueEnum::None));
 
 
 }

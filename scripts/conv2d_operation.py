@@ -28,6 +28,7 @@ class Conv2dOperation:
     self.C = C
     self.element_epilogue = element_epilogue
     self.epilogue_functor = epilogue_functor
+    self.scale_type = EpilogueScaleType.NoBetaScaling if conv_kind in [ConvKind.FpropBias] else EpilogueScaleType.Default
     self.iterator_algorithm = iterator_algorithm
     self.stride_support = stride_support
     self.swizzling_functor = swizzling_functor
@@ -151,7 +152,8 @@ class EmitConv2dInstance:
       ${element_c},
       ${epilogue_vector_length},
       ${element_accumulator},
-      ${element_epilogue}
+      ${element_epilogue},
+      ${epilogue_scale_type}
     >,
     ${swizzling_functor}, // cutlass::gemm::threadblock::GemmSplitKIdentityThreadblockSwizzle<>,
     ${stages},
@@ -195,6 +197,7 @@ class EmitConv2dInstance:
       'epilogue_vector_length': str(epilogue_vector_length),
       'epilogue_functor': EpilogueFunctorTag[operation.epilogue_functor],
       'element_epilogue': str(DataTypeTag[operation.element_epilogue]),
+      'epilogue_scale_type': EpilogueScaleTypeTag[operation.scale_type],
       'swizzling_functor': SwizzlingFunctorTag[operation.swizzling_functor],
       'stages': str(operation.tile_description.stages),
       'iterator_algorithm': IteratorAlgorithmTag[operation.iterator_algorithm],
@@ -247,6 +250,11 @@ class EmitConv2dConfigurationLibrary:
 
     self.instance_emitter = EmitConv2dInstance()
 
+    self.conv_kind_warppers = {
+      ConvKind.Fprop: 'Conv2dOperation',
+      ConvKind.FpropBias: 'Conv2dBiasOperation'
+    }
+
     self.instance_template = """
 ${operation_instance}
 
@@ -269,7 +277,7 @@ struct ${operation_name} :
 #include "cutlass/conv/device/implicit_gemm_convolution.h"
 
 #include "Manifest.h"
-#include "convolution/Conv2dOperation.h"
+#include "convolution/${conv_kind}.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 """
@@ -288,9 +296,9 @@ void initialize_${configuration_name}(Manifest &manifest) {
   using Operation_${operation_name} = cutlass::conv::device::ImplicitGemmConvolution<
     ${operation_name}>;
 
-  manifest.append(new Conv2dOperation<
+  manifest.append(new ${conv_kind}<
     Operation_${operation_name}>(
-      "${operation_name}"));
+      "${operation_name}", ${epilogue_enum}));
 
 """
 
@@ -311,15 +319,16 @@ void initialize_${configuration_name}(Manifest &manifest) {
   #
   def __enter__(self):
     self.configuration_file = open(self.configuration_path, "w")
-    self.configuration_file.write(SubstituteTemplate(self.header_template, {
-      'configuration_name': self.configuration_name
-      }))
+
     self.operations = []
     return self
 
   #
   def emit(self, operation):
     self.operations.append(operation)
+    self.configuration_file.write(SubstituteTemplate(self.header_template, {
+      'conv_kind': self.conv_kind_warppers[operation.conv_kind]
+      }))
     self.configuration_file.write(SubstituteTemplate(self.instance_template, {
       'configuration_name': self.configuration_name,
       'operation_name': operation.procedural_name(),
@@ -336,7 +345,9 @@ void initialize_${configuration_name}(Manifest &manifest) {
     for operation in self.operations:
       self.configuration_file.write(SubstituteTemplate(self.configuration_instance, {
         'configuration_name': self.configuration_name,
-        'operation_name': operation.procedural_name()  
+        'operation_name': operation.procedural_name(),
+        'conv_kind': self.conv_kind_warppers[operation.conv_kind],
+        'epilogue_enum': EpilogueFunctorStr[operation.epilogue_functor]
       }))
 
     self.configuration_file.write(self.configuration_epilogue)

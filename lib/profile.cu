@@ -265,7 +265,7 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
     }
     kernel->SetArgument(N, iH, iW, iC, oH, oW, oC, kH, kW, strideH, strideW,
                         paddingH, paddingW, dilationH, dilationW, (void *)input,
-                        (void *)filter, (void *)output);
+                        (void *)filter, (void *)output, (void *)output);
     if (!kernel->Check()) {
       continue;
     }

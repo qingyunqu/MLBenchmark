@@ -486,18 +486,21 @@ class ConvKind(enum.Enum):
   Fprop = enum_auto()
   Dgrad = enum_auto()
   Wgrad = enum_auto()
+  FpropBias = enum_auto()
 
 #
 ConvKindTag = {
   ConvKind.Fprop: 'cutlass::conv::Operator::kFprop',
   ConvKind.Dgrad: 'cutlass::conv::Operator::kDgrad',
-  ConvKind.Wgrad: 'cutlass::conv::Operator::kWgrad'
+  ConvKind.Wgrad: 'cutlass::conv::Operator::kWgrad',
+  ConvKind.FpropBias: 'cutlass::conv::Operator::kFprop'
 }
 
 ConvKindNames = {
   ConvKind.Fprop: 'fprop',
   ConvKind.Dgrad: 'dgrad',
   ConvKind.Wgrad: 'wgrad',
+  ConvKind.FpropBias: 'fprop_bias',
 }
 
 #
