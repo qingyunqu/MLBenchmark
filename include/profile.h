@@ -20,3 +20,11 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
                     int64_t kW, int64_t strideH, int64_t strideW,
                     int64_t paddingH, int64_t paddingW, int64_t dilationH = 1,
                     int64_t dilationW = 1);
+
+template <typename TA, typename TB, typename TC, typename CompOn>
+void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
+                         int64_t iC, int64_t oH, int64_t oW, int64_t oC,
+                         int64_t kH, int64_t kW, int64_t strideH,
+                         int64_t strideW, int64_t paddingH, int64_t paddingW,
+                         int64_t dilationH = 1, int64_t dilationW = 1,
+                         EpilogueEnum epilogue = EpilogueEnum::None);

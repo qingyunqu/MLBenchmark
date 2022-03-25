@@ -14,8 +14,8 @@ public:
   using ElementAccumulator = typename Conv2d::ElementAccumulator;
 
   Conv2dBiasOperation(const char *kernel_name, EpilogueEnum epilogue_enum)
-      : Conv2dOperation(kernel_name, OperationEnum::Conv2dBias, epilogue_enum) {
-  }
+      : Conv2dOperation<Conv2d>(kernel_name, OperationEnum::Conv2dBias,
+                                epilogue_enum) {}
 
   virtual void SetArgument(int64_t N, int64_t iH, int64_t iW, int64_t iC,
                            int64_t oH, int64_t oW, int64_t oC, int64_t kH,
@@ -41,7 +41,7 @@ public:
     this->arguments = {problem_size,
                        {(ElementA *)input, layoutA},
                        {(ElementB *)filter, layoutB},
-                       {(ElementC *)bias, LayoutC::Stride(0)},
+                       {(ElementC *)bias, LayoutC()},
                        {(ElementC *)output, layoutC},
                        {(ElementAccumulator)1}};
   }

@@ -120,7 +120,8 @@ template <typename T> __global__ void relu(T *result, int64_t size) {
 template <typename TA, typename TB, typename TC, typename CompOn>
 void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
                        LayoutEnum layout_a, LayoutEnum layout_b,
-                       LayoutEnum layout_c, EpilogueEnum epilogue) {
+                       LayoutEnum layout_c,
+                       EpilogueEnum epilogue /* = EpilogueEnum::None */) {
   using ElementInputA = typename ctype_to_cutlass_type<TA>::type;
   using ElementInputB = typename ctype_to_cutlass_type<TB>::type;
   using ElementOutput = typename ctype_to_cutlass_type<TC>::type;
@@ -295,3 +296,105 @@ template void profile_conv2d<__half, __half, __half, float>(
 template void profile_conv2d<__half, __half, __half, __half>(
     Manifest &, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
     int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t);
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
+// Conv2dBias
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
+template <typename TA, typename TB, typename TC, typename CompOn>
+void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
+                         int64_t iC, int64_t oH, int64_t oW, int64_t oC,
+                         int64_t kH, int64_t kW, int64_t strideH,
+                         int64_t strideW, int64_t paddingH, int64_t paddingW,
+                         int64_t dilationH /* = 1*/, int64_t dilationW /* = 1*/,
+                         EpilogueEnum epilogue /* = EpilogueEnum::None */) {
+  // only profile NHWC layout
+  using ElementInputA = typename ctype_to_cutlass_type<TA>::type;
+  using ElementInputB = typename ctype_to_cutlass_type<TB>::type;
+  using ElementOutput = typename ctype_to_cutlass_type<TC>::type;
+  using ElementAccumulator = typename ctype_to_cutlass_type<CompOn>::type;
+  TA *input = nullptr;
+  TB *filter = nullptr;
+  TC *bias = nullptr;
+  TC *output = nullptr;
+  TC *ref_output = nullptr;
+  CUDACHECK(cudaMalloc(&input, N * iH * iW * iC * sizeof(TA)));
+  CUDACHECK(cudaMalloc(&filter, oC * kH * kW * iC * sizeof(TB)));
+  CUDACHECK(cudaMalloc(&bias, oC * sizeof(TC)));
+  CUDACHECK(cudaMalloc(&output, N * oH * oW * oC * sizeof(TC)));
+  CUDACHECK(cudaMalloc(&ref_output, N * oH * oW * oC * sizeof(TC)));
+  RandCUDABuffer(input, N * iH * iW * iC, -1.f, 1.f);
+  RandCUDABuffer(filter, oC * kH * kW * iC, -1.f, 1.f);
+  RandCUDABuffer(bias, oC);
+  RandCUDABuffer(output, N * oH * oW * oC);
+  FillCUDABuffer(ref_output, N * oH * oW * oC);
+
+  cudaStream_t stream = nullptr;
+  cudnnHandle_t handle;
+  CUDNNCHECK(cudnnCreate(&handle));
+  CUDNNCHECK(cudnnSetStream(handle, stream));
+  Conv<TA, TC> *op = new CudnnConv<TA, TC, CompOn>(
+      "NHWC", N, iC, iH, iW, oC, kH, kW, oH, oW, strideH, strideW, paddingH,
+      paddingW, dilationH, dilationW, handle);
+  op->Run(input, filter, ref_output);
+  dim3 block(16, 16);
+  dim3 grid((oC + block.x - 1) / block.x,
+            (N * oH * oW + block.y - 1) / block.y);
+  bias_add<TC><<<grid, block, 0, stream>>>(bias, ref_output, N * oH * oW, oC);
+  after_kernel_launch();
+  if (epilogue == EpilogueEnum::Relu) {
+    relu<TC><<<(N * oH * oW * oC + 256 - 1) / 256, 256, 0, stream>>>(
+        ref_output, N * oH * oW * oC);
+    after_kernel_launch();
+  }
+  CUDACHECK(cudaDeviceSynchronize());
+
+  typename Operation::OperationTrait trait{
+      OperationEnum::Conv2dBias,
+      epilogue,
+      cutlass_type_to_dtype_v<ElementInputA>,
+      LayoutEnum::NHWC,
+      cutlass_type_to_dtype_v<ElementInputB>,
+      LayoutEnum::NHWC,
+      cutlass_type_to_dtype_v<ElementOutput>,
+      LayoutEnum::NHWC,
+      cutlass_type_to_dtype_v<ElementAccumulator>};
+  for (auto kernel : manifest.kernels) {
+    if (kernel->Trait() != trait) {
+      continue;
+    }
+    kernel->SetArgument(N, iH, iW, iC, oH, oW, oC, kH, kW, strideH, strideW,
+                        paddingH, paddingW, dilationH, dilationW, (void *)input,
+                        (void *)filter, (void *)bias, (void *)output);
+    if (!kernel->Check()) {
+      continue;
+    }
+    cutlass::device_memory::allocation<uint8_t> workspace(
+        kernel->GetWorkspaceSize());
+    kernel->Initialize(stream, workspace.get());
+    kernel->Run();
+    bool passed =
+        CheckCUDABuffer<TC>(output, ref_output, N * oH * oW * oC, 1e-1f);
+    std::cout << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
+    float time = benchmark<Operation>(kernel, stream);
+    std::cout << ", " << time << std::endl;
+  }
+
+  CUDACHECK(cudaFree(input));
+  CUDACHECK(cudaFree(filter));
+  CUDACHECK(cudaFree(bias));
+  CUDACHECK(cudaFree(output));
+  CUDACHECK(cudaFree(ref_output));
+  delete op;
+  CUDNNCHECK(cudnnDestroy(handle));
+  std::cout << "\n\n";
+}
+
+template void profile_conv2d_bias<__half, __half, __half, float>(
+    Manifest &, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
+    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
+    EpilogueEnum);
+template void profile_conv2d_bias<__half, __half, __half, __half>(
+    Manifest &, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
+    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
+    EpilogueEnum);

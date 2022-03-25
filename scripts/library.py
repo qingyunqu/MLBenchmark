@@ -500,7 +500,7 @@ ConvKindNames = {
   ConvKind.Fprop: 'fprop',
   ConvKind.Dgrad: 'dgrad',
   ConvKind.Wgrad: 'wgrad',
-  ConvKind.FpropBias: 'fprop_bias',
+  ConvKind.FpropBias: 'fprop',
 }
 
 #

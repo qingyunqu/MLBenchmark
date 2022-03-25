@@ -94,6 +94,8 @@ public:
 
 private:
   Conv2d conv2d;
-  typename Conv2d::Arguments arguments;
   typename Operation::OperationTrait trait;
+
+protected:
+  typename Conv2d::Arguments arguments;
 };
