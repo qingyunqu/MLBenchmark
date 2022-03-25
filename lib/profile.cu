@@ -197,12 +197,16 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
   std::cout << "\n\n";
 }
 
-template void profile_gemm_bias<__half, __half, float, float>(
-    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
+template void
+profile_gemm_bias<__half, __half, float, float>(Manifest &, int64_t, int64_t,
+                                                int64_t, LayoutEnum, LayoutEnum,
+                                                LayoutEnum, EpilogueEnum);
 template void profile_gemm_bias<__half, __half, __half, float>(
-    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
+    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum,
+    EpilogueEnum);
 template void profile_gemm_bias<__half, __half, __half, __half>(
-    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
+    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum,
+    EpilogueEnum);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // Conv2d

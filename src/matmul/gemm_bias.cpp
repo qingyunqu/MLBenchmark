@@ -5,7 +5,7 @@
 
 namespace cutlass {
 namespace library {
-void initialize_all_gemm_bias_operations(Manifest &manifest);
+void initialize_all_gemm_operations(Manifest &manifest);
 } // namespace library
 } // namespace cutlass
 
