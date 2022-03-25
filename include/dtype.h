@@ -25,7 +25,8 @@ enum class LayoutEnum : uint32_t {
 enum class OperationEnum : uint32_t {
   Invalid = 0,
   Matmul = 1,
-  MatmulBiasRelu = 2,
-  Conv2d = 3,
-  Conv2dBiasRelu = 4
+  MatmulBias = 2,
+  MatmulBiasRelu = 3,
+  Conv2d = 4,
+  Conv2dBiasRelu = 5
 };

@@ -25,7 +25,7 @@ public:
 
   Operation(const char *kernel_name) : kernel_name(kernel_name) {}
   virtual void SetArgument(int64_t m, int64_t n, int64_t k, void *a, void *b,
-                           void *c) {
+                           void *c, void *d) {
     assert(false && "should not reach this");
   }
   virtual void SetArgument(int64_t N, int64_t iH, int64_t iW, int64_t iC,
