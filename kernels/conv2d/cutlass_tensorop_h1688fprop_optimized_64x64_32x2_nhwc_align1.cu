@@ -9,7 +9,7 @@
 #include "cutlass/conv/kernel/default_conv2d_fprop.h"
 #include "cutlass/conv/device/implicit_gemm_convolution.h"
 
-#include "manifest.h"
+#include "Manifest.h"
 #include "convolution/Conv2dOperation.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

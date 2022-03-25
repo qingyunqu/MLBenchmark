@@ -21,6 +21,7 @@ public:
 
   Conv2dOperation(const char *kernel_name) : Operation(kernel_name) {
     trait = {OperationEnum::Conv2d,
+             EpilogueEnum::None,
              cutlass_type_to_dtype_v<ElementA>,
              cutlass_layout_to_layout_v<LayoutA>,
              cutlass_type_to_dtype_v<ElementB>,

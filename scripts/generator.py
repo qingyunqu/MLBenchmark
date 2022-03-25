@@ -60,7 +60,7 @@ def CreateGemmOperator(manifest, layouts, tile_descriptions, data_type, \
             B = TensorDescription(element_b, layout[1], alignment, complex_transform[1])
             C = TensorDescription(element_c, layout[2], alignment_c)
 
-            new_operation = GemmOperation(GemmKind.Universal, tile_description.minimum_compute_capability, \
+            new_operation = GemmOperation(GemmKind.GemmBias, tile_description.minimum_compute_capability, \
               tile_description, A, B, C, element_epilogue, epilogue_functor, swizzling_functor)
 
             manifest.append(new_operation)
@@ -153,7 +153,7 @@ def CreateGemmPlanarComplexOperator(manifest, layouts, tile_descriptions, data_t
 ###########################################################################################################
 # Convolution for 2D operations
 def CreateConv2dOperator(manifest, layout, tile_descriptions, data_type, alignment_constraints, \
-  conv_kinds = [ConvKind.Fprop, ConvKind.Dgrad, ConvKind.Wgrad], \
+  conv_kinds = [ConvKind.Fprop], \
   epilogue_functor = EpilogueFunctor.LinearCombination, swizzling_functor = SwizzlingFunctor.Identity4):
   
   element_a, element_b, element_c, element_epilogue = data_type
@@ -549,10 +549,10 @@ def GenerateSM70_TensorOp_884(manifest, args):
     return
 
   layouts = [
-    (LayoutType.ColumnMajor, LayoutType.ColumnMajor, LayoutType.ColumnMajor),
-    (LayoutType.ColumnMajor, LayoutType.RowMajor, LayoutType.ColumnMajor),
-    (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.ColumnMajor),
-    (LayoutType.RowMajor, LayoutType.RowMajor, LayoutType.ColumnMajor),
+    (LayoutType.ColumnMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
+    (LayoutType.ColumnMajor, LayoutType.RowMajor, LayoutType.RowMajor),
+    (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
+    (LayoutType.RowMajor, LayoutType.RowMajor, LayoutType.RowMajor),
   ]
 
   math_instructions = [
@@ -682,10 +682,10 @@ def GenerateSM70_PlanarComplexTensorOp_884(manifest, args):
 def GenerateSM70_WmmaTensorOp_161616(manifest, args):
 
   layouts = [
-    (LayoutType.ColumnMajor, LayoutType.ColumnMajor, LayoutType.ColumnMajor),
-    (LayoutType.ColumnMajor, LayoutType.RowMajor, LayoutType.ColumnMajor),
-    (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.ColumnMajor),
-    (LayoutType.RowMajor, LayoutType.RowMajor, LayoutType.ColumnMajor),
+    (LayoutType.ColumnMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
+    (LayoutType.ColumnMajor, LayoutType.RowMajor, LayoutType.RowMajor),
+    (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
+    (LayoutType.RowMajor, LayoutType.RowMajor, LayoutType.RowMajor),
   ]
 
   math_instructions = [
@@ -743,11 +743,11 @@ def GenerateSM70_WmmaTensorOp_161616(manifest, args):
 
 def GenerateSM70(manifest, args):
   GenerateSM70_TensorOp_884(manifest, args)
-  GenerateSM70_PlanarComplexTensorOp_884(manifest, args)
+  # GenerateSM70_PlanarComplexTensorOp_884(manifest, args)
 
   # To limit build size, WMMA GEMMs are disabled for now.
   #
-  #GenerateSM70_WmmaTensorOp_161616(manifest, args)
+  GenerateSM70_WmmaTensorOp_161616(manifest, args)
 
 ###################################################################################################
 ###################################################################################################
@@ -759,10 +759,10 @@ def GenerateSM75_TensorOp_1688(manifest, args):
     return
 
   layouts = [
-    (LayoutType.ColumnMajor, LayoutType.ColumnMajor, LayoutType.ColumnMajor),
-    (LayoutType.ColumnMajor, LayoutType.RowMajor, LayoutType.ColumnMajor),
-    (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.ColumnMajor),
-    (LayoutType.RowMajor, LayoutType.RowMajor, LayoutType.ColumnMajor),
+    (LayoutType.ColumnMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
+    (LayoutType.ColumnMajor, LayoutType.RowMajor, LayoutType.RowMajor),
+    (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
+    (LayoutType.RowMajor, LayoutType.RowMajor, LayoutType.RowMajor),
   ]
 
   math_instructions = [
@@ -1305,14 +1305,14 @@ def GenerateSM75_Simt_complex(manifest, args):
 
 def GenerateSM75(manifest, args):
   GenerateSM75_TensorOp_1688(manifest, args)
-  GenerateSM75_PlanarComplexTensorOp_1688(manifest, args)
-  GenerateSM75_TensorOp_8816_TN(manifest, args)
-  GenerateSM75_TensorOp_8816_Interleaved(manifest, args)
-  GenerateSM75_TensorOp_8832_TN(manifest, args)
-  GenerateSM75_TensorOp_8832_Interleaved(manifest, args)
-  GenerateSM75_TensorOp_88128(manifest, args)
+  #GenerateSM75_PlanarComplexTensorOp_1688(manifest, args)
+  #GenerateSM75_TensorOp_8816_TN(manifest, args)
+  #GenerateSM75_TensorOp_8816_Interleaved(manifest, args)
+  #GenerateSM75_TensorOp_8832_TN(manifest, args)
+  #GenerateSM75_TensorOp_8832_Interleaved(manifest, args)
+  #GenerateSM75_TensorOp_88128(manifest, args)
   #GenerateSM75_WmmaTensorOp_161616(manifest, args)
-  GenerateSM75_Simt_complex(manifest, args)
+  #GenerateSM75_Simt_complex(manifest, args)
 
 
 ###################################################################################################
@@ -2681,12 +2681,12 @@ if __name__ == "__main__":
 
   manifest = Manifest(args)
 
-  GenerateSM50(manifest, args)
-  GenerateSM60(manifest, args)
-  GenerateSM61(manifest, args)
+  #GenerateSM50(manifest, args)
+  #GenerateSM60(manifest, args)
+  #GenerateSM61(manifest, args)
   GenerateSM70(manifest, args)
   GenerateSM75(manifest, args)
-  GenerateSM80(manifest, args)
+  #GenerateSM80(manifest, args)
   if 'library' in args.generator_target.split(','):
     manifest.emit(GeneratorTarget.Library)
 

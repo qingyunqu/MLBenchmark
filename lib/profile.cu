@@ -1,10 +1,11 @@
+#include "Manifest.h"
 #include "Operation.h"
 #include "benchmark.h"
 #include "check.h"
 #include "convolution/CudnnConv.h"
 #include "cutlass_dtype.h"
-#include "manifest.h"
 #include "matmul/CublasMatmul.h"
+#include "profile.h"
 #include "util.h"
 
 #include <cuda_runtime.h>
@@ -13,23 +14,14 @@
 #include "cutlass/cutlass.h"
 #include "cutlass/util/device_memory.h"
 
-template <typename T>
-__global__ void bias_add(T *bias, T *result, int64_t m, int64_t n) {
-  int row = blockIdx.x * blockDim.x + threadIdx.x;
-  int column = blockIdx.y * blockDim.y + threadIdx.y;
-  if (row < n && column < m) {
-    result[column * n + row] += bias[row];
-  }
-}
-
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // Gemm
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename TA, typename TB, typename TC, typename CompOn>
-void Manifest::profile_gemm(int64_t m, int64_t n, int64_t k,
-                            LayoutEnum layout_a, LayoutEnum layout_b,
-                            LayoutEnum layout_c) {
+void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
+                  LayoutEnum layout_a, LayoutEnum layout_b,
+                  LayoutEnum layout_c) {
   using ElementInputA = typename ctype_to_cutlass_type<TA>::type;
   using ElementInputB = typename ctype_to_cutlass_type<TB>::type;
   using ElementOutput = typename ctype_to_cutlass_type<TC>::type;
@@ -62,6 +54,7 @@ void Manifest::profile_gemm(int64_t m, int64_t n, int64_t k,
 
   typename Operation::OperationTrait trait{
       OperationEnum::Matmul,
+      EpilogueEnum::None,
       cutlass_type_to_dtype_v<ElementInputA>,
       layout_a,
       cutlass_type_to_dtype_v<ElementInputB>,
@@ -69,7 +62,7 @@ void Manifest::profile_gemm(int64_t m, int64_t n, int64_t k,
       cutlass_type_to_dtype_v<ElementOutput>,
       layout_c,
       cutlass_type_to_dtype_v<ElementAccumulator>};
-  for (auto &kernel : kernels) {
+  for (auto &kernel : manifest.kernels) {
     if (kernel->Trait() != trait) {
       continue;
     }
@@ -94,21 +87,40 @@ void Manifest::profile_gemm(int64_t m, int64_t n, int64_t k,
   std::cout << "\n\n";
 }
 
-template void Manifest::profile_gemm<__half, __half, float, float>(
-    int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
-template void Manifest::profile_gemm<__half, __half, __half, float>(
-    int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
-template void Manifest::profile_gemm<__half, __half, __half, __half>(
-    int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
+template void profile_gemm<__half, __half, float, float>(Manifest &, int64_t,
+                                                         int64_t, int64_t,
+                                                         LayoutEnum, LayoutEnum,
+                                                         LayoutEnum);
+template void profile_gemm<__half, __half, __half, float>(
+    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
+template void profile_gemm<__half, __half, __half, __half>(
+    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // GemmBias
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
+template <typename T>
+__global__ void bias_add(T *bias, T *result, int64_t m, int64_t n) {
+  int row = blockIdx.x * blockDim.x + threadIdx.x;
+  int column = blockIdx.y * blockDim.y + threadIdx.y;
+  if (row < n && column < m) {
+    result[column * n + row] += bias[row];
+  }
+}
+
+template <typename T> __global__ void relu(T *result, int64_t size) {
+  int id = blockIdx.x * blockDim.x + threadIdx.x;
+  if (id < size) {
+    result[id] =
+        result[id] >= static_cast<T>(0) ? result[id] : static_cast<T>(0);
+  }
+}
+
 template <typename TA, typename TB, typename TC, typename CompOn>
-void Manifest::profile_gemm_bias(int64_t m, int64_t n, int64_t k,
-                                 LayoutEnum layout_a, LayoutEnum layout_b,
-                                 LayoutEnum layout_c) {
+void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
+                       LayoutEnum layout_a, LayoutEnum layout_b,
+                       LayoutEnum layout_c, EpilogueEnum epilogue) {
   using ElementInputA = typename ctype_to_cutlass_type<TA>::type;
   using ElementInputB = typename ctype_to_cutlass_type<TB>::type;
   using ElementOutput = typename ctype_to_cutlass_type<TC>::type;
@@ -142,10 +154,16 @@ void Manifest::profile_gemm_bias(int64_t m, int64_t n, int64_t k,
   dim3 block(16, 16);
   dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y);
   bias_add<TC><<<grid, block, 0, stream>>>(c, ref_d, m, n);
+  after_kernel_launch();
+  if (epilogue == EpilogueEnum::Relu) {
+    relu<TC><<<(m * n + 256 - 1) / 256, 256, 0, stream>>>(ref_d, m * n);
+    after_kernel_launch();
+  }
   CUDACHECK(cudaDeviceSynchronize());
 
   typename Operation::OperationTrait trait{
       OperationEnum::MatmulBias,
+      epilogue,
       cutlass_type_to_dtype_v<ElementInputA>,
       layout_a,
       cutlass_type_to_dtype_v<ElementInputB>,
@@ -153,7 +171,7 @@ void Manifest::profile_gemm_bias(int64_t m, int64_t n, int64_t k,
       cutlass_type_to_dtype_v<ElementOutput>,
       layout_c,
       cutlass_type_to_dtype_v<ElementAccumulator>};
-  for (auto &kernel : kernels) {
+  for (auto &kernel : manifest.kernels) {
     if (kernel->Trait() != trait) {
       continue;
     }
@@ -179,24 +197,23 @@ void Manifest::profile_gemm_bias(int64_t m, int64_t n, int64_t k,
   std::cout << "\n\n";
 }
 
-template void Manifest::profile_gemm_bias<__half, __half, float, float>(
-    int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
-template void Manifest::profile_gemm_bias<__half, __half, __half, float>(
-    int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
-template void Manifest::profile_gemm_bias<__half, __half, __half, __half>(
-    int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
+template void profile_gemm_bias<__half, __half, float, float>(
+    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
+template void profile_gemm_bias<__half, __half, __half, float>(
+    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
+template void profile_gemm_bias<__half, __half, __half, __half>(
+    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // Conv2d
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename TA, typename TB, typename TC, typename CompOn>
-void Manifest::profile_conv2d(int64_t N, int64_t iH, int64_t iW, int64_t iC,
-                              int64_t oH, int64_t oW, int64_t oC, int64_t kH,
-                              int64_t kW, int64_t strideH, int64_t strideW,
-                              int64_t paddingH, int64_t paddingW,
-                              int64_t dilationH /* = 1*/,
-                              int64_t dilationW /* = 1*/) {
+void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
+                    int64_t iC, int64_t oH, int64_t oW, int64_t oC, int64_t kH,
+                    int64_t kW, int64_t strideH, int64_t strideW,
+                    int64_t paddingH, int64_t paddingW,
+                    int64_t dilationH /* = 1*/, int64_t dilationW /* = 1*/) {
   // only profile NHWC layout
   using ElementInputA = typename ctype_to_cutlass_type<TA>::type;
   using ElementInputB = typename ctype_to_cutlass_type<TB>::type;
@@ -229,11 +246,16 @@ void Manifest::profile_conv2d(int64_t N, int64_t iH, int64_t iW, int64_t iC,
       benchmark<Op<TA, TC>>(op, stream, input, filter, ref_output);
 
   typename Operation::OperationTrait trait{
-      OperationEnum::Conv2d, cutlass_type_to_dtype_v<ElementInputA>,
-      LayoutEnum::NHWC,      cutlass_type_to_dtype_v<ElementInputB>,
-      LayoutEnum::NHWC,      cutlass_type_to_dtype_v<ElementOutput>,
-      LayoutEnum::NHWC,      cutlass_type_to_dtype_v<ElementAccumulator>};
-  for (auto kernel : kernels) {
+      OperationEnum::Conv2d,
+      EpilogueEnum::None,
+      cutlass_type_to_dtype_v<ElementInputA>,
+      LayoutEnum::NHWC,
+      cutlass_type_to_dtype_v<ElementInputB>,
+      LayoutEnum::NHWC,
+      cutlass_type_to_dtype_v<ElementOutput>,
+      LayoutEnum::NHWC,
+      cutlass_type_to_dtype_v<ElementAccumulator>};
+  for (auto kernel : manifest.kernels) {
     if (kernel->Trait() != trait) {
       continue;
     }
@@ -263,9 +285,9 @@ void Manifest::profile_conv2d(int64_t N, int64_t iH, int64_t iW, int64_t iC,
   std::cout << "\n\n";
 }
 
-template void Manifest::profile_conv2d<__half, __half, __half, float>(
-    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
-    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t);
-template void Manifest::profile_conv2d<__half, __half, __half, __half>(
-    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
-    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t);
+template void profile_conv2d<__half, __half, __half, float>(
+    Manifest &, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
+    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t);
+template void profile_conv2d<__half, __half, __half, __half>(
+    Manifest &, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
+    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t);

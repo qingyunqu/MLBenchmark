@@ -8,6 +8,7 @@ class Operation {
 public:
   struct OperationTrait {
     OperationEnum operation;
+    EpilogueEnum epilogue;
     DTypeEnum element_a;
     LayoutEnum layout_a;
     DTypeEnum element_b;
@@ -16,10 +17,11 @@ public:
     LayoutEnum layout_c;
     DTypeEnum accumulator;
     bool operator!=(const OperationTrait &trait) const {
-      return !(operation == trait.operation && element_a == trait.element_a &&
-               element_b == trait.element_b && element_c == trait.element_c &&
-               layout_a == trait.layout_a && layout_b == trait.layout_b &&
-               layout_c == trait.layout_c && accumulator == trait.accumulator);
+      return !(operation == trait.operation && epilogue == trait.epilogue &&
+               element_a == trait.element_a && element_b == trait.element_b &&
+               element_c == trait.element_c && layout_a == trait.layout_a &&
+               layout_b == trait.layout_b && layout_c == trait.layout_c &&
+               accumulator == trait.accumulator);
     }
   };
 

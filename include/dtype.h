@@ -26,7 +26,8 @@ enum class OperationEnum : uint32_t {
   Invalid = 0,
   Matmul = 1,
   MatmulBias = 2,
-  MatmulBiasRelu = 3,
   Conv2d = 4,
-  Conv2dBiasRelu = 5
+  Conv2dBias = 5,
 };
+
+enum class EpilogueEnum : uint32_t { None = 0, Relu = 1 };

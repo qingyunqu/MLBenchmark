@@ -700,7 +700,7 @@ ${compile_guard_end}
 #include "cutlass/cutlass.h"
 
 #include "matmul/GemmOperation.h"
-#include "manifest.h"
+#include "Manifest.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 

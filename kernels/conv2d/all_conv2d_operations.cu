@@ -5,7 +5,7 @@
 
 #include "cutlass/cutlass.h"
 
-#include "manifest.h"
+#include "Manifest.h"
 
 namespace cutlass {
 namespace library {

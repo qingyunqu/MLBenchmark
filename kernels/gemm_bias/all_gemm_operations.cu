@@ -5,7 +5,7 @@
 
 #include "cutlass/cutlass.h"
 
-#include "manifest.h"
+#include "Manifest.h"
 
 namespace cutlass {
 namespace library {
@@ -689,7 +689,7 @@ void initialize_cutlass_tensorop_h1688gemm_bias_64x128_64x2_tt_align1(Manifest &
 //
 // Entry point to construct operations
 //
-void initialize_all_gemm_operations(Manifest &manifest) {
+void initialize_all_gemm_bias_operations(Manifest &manifest) {
   initialize_cutlass_tensorop_s884gemm_bias_f16_256x128_32x2_nn_align8(manifest);
   initialize_cutlass_tensorop_s884gemm_bias_f16_256x128_32x2_nn_align4(manifest);
   initialize_cutlass_tensorop_s884gemm_bias_f16_256x128_32x2_nn_align2(manifest);
