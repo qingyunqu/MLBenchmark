@@ -39,6 +39,8 @@ void Manifest::profile_gemm(int64_t m, int64_t n, int64_t k,
   op->Run(a, b, ref_c);
   CUDACHECK(cudaDeviceSynchronize());
 
+  float cublas_time = benchmark<Op<TA, TC>>(op, stream, a, b, ref_c);
+
   typename Operation::OperationTrait trait{
       OperationEnum::Matmul,
       cutlass_type_to_dtype_v<ElementInputA>,
@@ -61,14 +63,16 @@ void Manifest::profile_gemm(int64_t m, int64_t n, int64_t k,
     bool passed = CheckCUDABuffer<TC>(c, ref_c, m * n, 1e-1f);
     std::cout << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
     float time = benchmark<Operation>(kernel, stream);
-    std::cout << ", " << time << std::endl;
+    std::cout << ", " << time << ", " << cublas_time << std::endl;
   }
+
   CUDACHECK(cudaFree(a));
   CUDACHECK(cudaFree(b));
   CUDACHECK(cudaFree(c));
   CUDACHECK(cudaFree(ref_c));
   delete op;
   CUBLASCHECK(cublasDestroy(handle));
+  std::cout << "\n\n";
 }
 
 template void Manifest::profile_gemm<__half, __half, float, float>(
@@ -104,8 +108,11 @@ void Manifest::profile_conv2d(int64_t N, int64_t iH, int64_t iW, int64_t iC,
   Conv<TA, TC> *op = new CudnnConv<TA, TC, CompOn>(
       "NHWC", N, iC, iH, iW, oC, kH, kW, oH, oW, strideH, strideW, paddingH,
       paddingW, dilationH, dilationW, handle);
-  op->Run(input, output, ref_output);
+  op->Run(input, filter, ref_output);
   CUDACHECK(cudaDeviceSynchronize());
+
+  float cudnn_time =
+      benchmark<Op<TA, TC>>(op, stream, input, filter, ref_output);
 
   typename Operation::OperationTrait trait{
       OperationEnum::Conv2d, cutlass_type_to_dtype_v<ElementInputA>,
@@ -130,7 +137,7 @@ void Manifest::profile_conv2d(int64_t N, int64_t iH, int64_t iW, int64_t iC,
         CheckCUDABuffer<TC>(output, ref_output, N * oH * oW * oC, 1e-1f);
     std::cout << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
     float time = benchmark<Operation>(kernel, stream);
-    std::cout << ", " << time << std::endl;
+    std::cout << ", " << time << ", " << cudnn_time << std::endl;
   }
 
   CUDACHECK(cudaFree(input));
@@ -139,6 +146,7 @@ void Manifest::profile_conv2d(int64_t N, int64_t iH, int64_t iW, int64_t iC,
   CUDACHECK(cudaFree(ref_output));
   delete op;
   CUDNNCHECK(cudnnDestroy(handle));
+  std::cout << "\n\n";
 }
 
 template void Manifest::profile_conv2d<__half, __half, __half, float>(

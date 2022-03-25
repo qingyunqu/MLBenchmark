@@ -414,6 +414,7 @@ class GemmKind(enum.Enum):
   Universal = enum_auto()
   PlanarComplex = enum_auto()
   PlanarComplexArray = enum_auto()
+  GemmBias = enum_auto()
 
 #
 GemmKindNames = {
@@ -422,17 +423,31 @@ GemmKindNames = {
   GemmKind.Universal: "gemm",
   GemmKind.PlanarComplex: "gemm_planar_complex",
   GemmKind.PlanarComplexArray: "gemm_planar_complex_array",
+  GemmKind.GemmBias: "gemm_bias",
 }
 
 #
 class EpilogueFunctor(enum.Enum):
   LinearCombination = enum_auto()
   LinearCombinationClamp = enum_auto()
+  LinearCombinationRelu = enum_auto()
 
 #
 EpilogueFunctorTag = {
   EpilogueFunctor.LinearCombination: 'cutlass::epilogue::thread::LinearCombination',
   EpilogueFunctor.LinearCombinationClamp: 'cutlass::epilogue::thread::LinearCombinationClamp',
+  EpilogueFunctor.LinearCombinationRelu: 'cutlass::epilogue::thread::LinearCombinationRelu',
+}
+
+#
+class EpilogueScaleType(enum.Enum):
+  Default = enum_auto()
+  NoBetaScaling = enum_auto()
+
+#
+EpilogueScaleTypeTag = {
+  EpilogueScaleType.Default: 'cutlass::epilogue::thread::ScaleType::Default',
+  EpilogueScaleType.NoBetaScaling: 'cutlass::epilogue::thread::ScaleType::NoBetaScaling',
 }
 
 #

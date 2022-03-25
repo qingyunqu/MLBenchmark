@@ -34,6 +34,7 @@ class GemmOperation:
     self.C = C
     self.element_epilogue = element_epilogue
     self.epilogue_functor = epilogue_functor
+    self.scale_type = EpilogueScaleType.NoBetaScaling if gemm_kind in [GemmKind.GemmBias] else EpilogueScaleType.Default
     self.swizzling_functor = swizzling_functor
 
   #
@@ -176,7 +177,8 @@ class EmitGemmInstance:
       ${element_c},
       ${epilogue_vector_length},
       ${element_accumulator},
-      ${element_epilogue}
+      ${element_epilogue},
+      ${epilogue_scale_type}
     >,
     ${swizzling_functor},
     ${stages},
@@ -245,6 +247,7 @@ class EmitGemmInstance:
       'epilogue_vector_length': str(epilogue_vector_length),
       'element_epilogue': str(DataTypeTag[operation.element_epilogue]),
       'epilogue_functor': EpilogueFunctorTag[operation.epilogue_functor],
+      'epilogue_scale_type': EpilogueScaleTypeTag[operation.scale_type],
       'swizzling_functor': SwizzlingFunctorTag[operation.swizzling_functor],
       'stages': str(operation.tile_description.stages),
       'align_a': str(operation.A.alignment),
@@ -630,6 +633,7 @@ class EmitGemmConfigurationLibrary:
 
     self.instance_emitter = {
       GemmKind.Gemm: EmitGemmInstance,
+      GemmKind.GemmBias: EmitGemmInstance,
       GemmKind.Sparse: EmitSparseGemmInstance,
       GemmKind.Universal: EmitGemmUniversalInstance,
       GemmKind.PlanarComplex: EmitGemmPlanarComplexInstance,
@@ -638,6 +642,7 @@ class EmitGemmConfigurationLibrary:
 
     self.gemm_kind_wrappers = {
       GemmKind.Gemm: 'GemmOperation',
+      GemmKind.GemmBias: 'GemmBiasOperation',
       GemmKind.Sparse: 'GemmSparseOperation',
       GemmKind.Universal: 'GemmUniversalOperation',
       GemmKind.PlanarComplex: 'GemmPlanarComplexOperation',
@@ -648,6 +653,11 @@ class EmitGemmConfigurationLibrary:
 
     self.instance_template = {
       GemmKind.Gemm: """
+${compile_guard_start}
+  manifest.append(new ${gemm_kind}<Operation_${operation_name}>("${operation_name}"));
+${compile_guard_end}
+""",
+      GemmKind.GemmBias: """
 ${compile_guard_start}
   manifest.append(new ${gemm_kind}<Operation_${operation_name}>("${operation_name}"));
 ${compile_guard_end}
