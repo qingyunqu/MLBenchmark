@@ -16,6 +16,8 @@
 #include "cutlass/cutlass.h"
 #include "cutlass/util/device_memory.h"
 
+#define DEBUG 0
+
 struct Result {
   const char *kernel_name;
   bool passed;
@@ -25,19 +27,6 @@ struct Result {
     return cutlass_time < result.cutlass_time;
   }
 };
-
-const char *layout_enum_to_str(LayoutEnum a) {
-  if (a == LayoutEnum::RowMajor) {
-    return "row";
-  } else if (a == LayoutEnum::ColumnMajor) {
-    return "col";
-  } else if (a == LayoutEnum::NHWC) {
-    return "nhwc";
-  } else if (a == LayoutEnum::NCHW) {
-    return "nchw";
-  }
-  return "";
-}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // Gemm
@@ -99,12 +88,16 @@ void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
     kernel->Initialize(stream, nullptr);
     kernel->Run();
     bool passed = CheckCUDABuffer<TC>(c, ref_c, m * n, 1e-1f);
-    std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
     float time = benchmark<Operation>(kernel, stream);
+#if DEBUG
+    std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
     std::cerr << ", " << time << ", " << cublas_time << "\n";
+#endif
     results.push_back({kernel->Name(), passed, time, cublas_time});
   }
+#if DEBUG
   std::cerr << "\n";
+#endif
 
   CUDACHECK(cudaFree(a));
   CUDACHECK(cudaFree(b));
@@ -116,8 +109,9 @@ void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
   if (results.size() == 0)
     return;
   std::sort(results.begin(), results.end());
-  std::cout << m << "x" << n << "x" << k << " " << layout_enum_to_str(layout_a)
-            << "-" << layout_enum_to_str(layout_b) << "-"
+  std::cout << "Gemm " << m << "x" << n << "x" << k << " "
+            << layout_enum_to_str(layout_a) << "-"
+            << layout_enum_to_str(layout_b) << "-"
             << layout_enum_to_str(layout_c) << ":\n";
   std::cout << "KernelName, Passed, CutlassTime, CublasTime\n";
   std::cout << results[0].kernel_name << ", "
@@ -209,12 +203,16 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
     kernel->Initialize(stream, nullptr);
     kernel->Run();
     bool passed = CheckCUDABuffer<TC>(d, ref_d, m * n, 1e-1f);
-    std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
     float time = benchmark<Operation>(kernel, stream);
+#if DEBUG
+    std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
     std::cerr << ", " << time << "\n";
+#endif
     results.push_back({kernel->Name(), passed, time, 0.f});
   }
+#if DEBUG
   std::cerr << "\n";
+#endif
 
   CUDACHECK(cudaFree(a));
   CUDACHECK(cudaFree(b));
@@ -227,8 +225,9 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
   if (results.size() == 0)
     return;
   std::sort(results.begin(), results.end());
-  std::cout << m << "x" << n << "x" << k << " " << layout_enum_to_str(layout_a)
-            << "-" << layout_enum_to_str(layout_b) << "-"
+  std::cout << "GemmBias" << epilogue_enum_to_str(epilogue) << " " << m << "x"
+            << n << "x" << k << " " << layout_enum_to_str(layout_a) << "-"
+            << layout_enum_to_str(layout_b) << "-"
             << layout_enum_to_str(layout_c) << ":\n";
   std::cout << "KernelName, Passed, CutlassTime\n";
   std::cout << results[0].kernel_name << ", "
@@ -315,12 +314,16 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
     kernel->Run();
     bool passed =
         CheckCUDABuffer<TC>(output, ref_output, N * oH * oW * oC, 1e-1f);
-    std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
     float time = benchmark<Operation>(kernel, stream);
+#if DEBUG
+    std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
     std::cerr << ", " << time << ", " << cudnn_time << "\n";
+#endif
     results.push_back({kernel->Name(), passed, time, cudnn_time});
   }
+#if DEBUG
   std::cerr << "\n";
+#endif
 
   CUDACHECK(cudaFree(input));
   CUDACHECK(cudaFree(filter));
@@ -332,11 +335,11 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
   if (results.size() == 0)
     return;
   std::sort(results.begin(), results.end());
-  std::cout << N << "x" << iH << "x" << iW << "x" << iC << ", " << oC << "x"
-            << kH << "x" << kW << "x" << iC << ", " << N << "x" << oH << "x"
-            << oW << "x" << oC << ", "
+  std::cout << "Conv2dFrop " << N << "x" << iH << "x" << iW << "x" << iC << ", "
+            << oC << "x" << kH << "x" << kW << "x" << iC << ", " << N << "x"
+            << oH << "x" << oW << "x" << oC << ", "
             << "stride: " << strideH << "x" << strideW
-            << ", padding: " << paddingH << "x" << paddingW << "\n";
+            << ", padding: " << paddingH << "x" << paddingW << ":\n";
   std::cout << "KernelName, Passed, CutlassTime, CudnnTime\n";
   std::cout << results[0].kernel_name << ", "
             << (results[0].passed ? "Passed" : "Failed") << ", "
@@ -434,12 +437,16 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
     kernel->Run();
     bool passed =
         CheckCUDABuffer<TC>(output, ref_output, N * oH * oW * oC, 1e-1f);
-    std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
     float time = benchmark<Operation>(kernel, stream);
+#if DEBUG
+    std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
     std::cerr << ", " << time << std::endl;
+#endif
     results.push_back({kernel->Name(), passed, time, 0.f});
   }
+#if DEBUG
   std::cerr << "\n";
+#endif
 
   CUDACHECK(cudaFree(input));
   CUDACHECK(cudaFree(filter));
@@ -452,11 +459,12 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
   if (results.size() == 0)
     return;
   std::sort(results.begin(), results.end());
-  std::cout << N << "x" << iH << "x" << iW << "x" << iC << ", " << oC << "x"
-            << kH << "x" << kW << "x" << iC << ", " << N << "x" << oH << "x"
-            << oW << "x" << oC << ", "
+  std::cout << "Conv2dFpropBias" << epilogue_enum_to_str(epilogue) << " " << N
+            << "x" << iH << "x" << iW << "x" << iC << ", " << oC << "x" << kH
+            << "x" << kW << "x" << iC << ", " << N << "x" << oH << "x" << oW
+            << "x" << oC << ", "
             << "stride: " << strideH << "x" << strideW
-            << ", padding: " << paddingH << "x" << paddingW << "\n";
+            << ", padding: " << paddingH << "x" << paddingW << ":\n";
   std::cout << "KernelName, Passed, CutlassTime\n";
   std::cout << results[0].kernel_name << ", "
             << (results[0].passed ? "Passed" : "Failed") << ", "
