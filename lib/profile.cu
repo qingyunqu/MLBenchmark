@@ -16,7 +16,7 @@
 #include "cutlass/cutlass.h"
 #include "cutlass/util/device_memory.h"
 
-#define DEBUG 0
+#define DEBUG 1
 
 struct Result {
   const char *kernel_name;
@@ -272,6 +272,99 @@ template void profile_gemm_bias<__half, __half, __half, __half>(
     EpilogueEnum);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
+// GemmGemm
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
+template <typename TA, typename TB, typename TC, typename CompOn>
+void profile_gemm_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
+                       LayoutEnum layout_a, LayoutEnum layout_b,
+                       LayoutEnum layout_c) {
+  using ElementInputA = typename ctype_to_cutlass_type<TA>::type;
+  using ElementInputB = typename ctype_to_cutlass_type<TB>::type;
+  using ElementOutput = typename ctype_to_cutlass_type<TC>::type;
+  using ElementAccumulator = typename ctype_to_cutlass_type<CompOn>::type;
+  TA *a = nullptr;
+  TB *b = nullptr;
+  TC *b1 = nullptr;
+  TC *d = nullptr;
+  TC *ref_d = nullptr;
+  CUDACHECK(cudaMalloc(&a, m * k * sizeof(TA)));
+  CUDACHECK(cudaMalloc(&b, n * k * sizeof(TB)));
+  CUDACHECK(cudaMalloc(&b1, m * n * sizeof(TC)));
+  CUDACHECK(cudaMalloc(&d, m * n * sizeof(TC)));
+  CUDACHECK(cudaMalloc(&ref_d, m * n * sizeof(TC)));
+  RandCUDABuffer(a, m * k, -1.f, 1.f);
+  RandCUDABuffer(b, n * k, -1.f, 1.f);
+  RandCUDABuffer(b1, m * n, -1.f, 1.f);
+  RandCUDABuffer(d, m * n);
+  FillCUDABuffer(ref_d, m * n);
+
+  cudaStream_t stream = nullptr;
+  cublasHandle_t handle;
+  CUBLASCHECK(cublasCreate(&handle));
+  CUBLASCHECK(cublasSetStream(handle, stream));
+  Matmul<TA, TC> *op = new CublasMatmul<TA, TC, CompOn>(
+      m, n, k, layout_a == LayoutEnum::ColumnMajor,
+      layout_b == LayoutEnum::ColumnMajor, layout_c == LayoutEnum::ColumnMajor,
+      handle);
+  cutlass::device_memory::allocation<uint8_t> workspace(m * n * sizeof(TC));
+  op->Run(a, b, (TC *)workspace.get());
+  op->Run((TC *)workspace.get(), b1, ref_d);
+  CUDACHECK(cudaDeviceSynchronize());
+
+  typename Operation::OperationTrait trait;
+  typename Operation::OperationTrait trait1;
+  trait = {OperationEnum::Matmul,
+           EpilogueEnum::None,
+           cutlass_type_to_dtype_v<ElementInputA>,
+           layout_a,
+           cutlass_type_to_dtype_v<ElementInputB>,
+           layout_b,
+           cutlass_type_to_dtype_v<ElementOutput>,
+           LayoutEnum::RowMajor,
+           cutlass_type_to_dtype_v<ElementAccumulator>};
+  trait1 = {OperationEnum::Matmul,
+            EpilogueEnum::None,
+            cutlass_type_to_dtype_v<ElementOutput>,
+            LayoutEnum::RowMajor,
+            cutlass_type_to_dtype_v<ElementInputB>,
+            layout_b,
+            cutlass_type_to_dtype_v<ElementOutput>,
+            LayoutEnum::RowMajor,
+            cutlass_type_to_dtype_v<ElementAccumulator>};
+  for (auto &kernel : manifest.kernels) {
+    if (kernel->Trait() != trait || kernel->Trait1() != trait1) {
+      continue;
+    }
+    kernel->SetArgument(m, n, k, (void *)a, (void *)b, (void *)b1, (void *)d, 1,
+                        1.f, 0.f);
+    if (!kernel->Check()) {
+      continue;
+    }
+    kernel->Initialize(stream, nullptr);
+    kernel->Run();
+    bool passed = CheckCUDABuffer<TC>(d, ref_d, m * n, 1e-3f, 1e-2f);
+#if DEBUG
+    std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed")
+              << "\n";
+#endif
+  }
+
+  CUDACHECK(cudaFree(a));
+  CUDACHECK(cudaFree(b));
+  CUDACHECK(cudaFree(b1));
+  CUDACHECK(cudaFree(d));
+  CUDACHECK(cudaFree(ref_d));
+  delete op;
+  CUBLASCHECK(cublasDestroy(handle));
+}
+
+template void profile_gemm_gemm<__half, __half, __half, __half>(
+    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
+template void profile_gemm_gemm<__half, __half, __half, float>(
+    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
 // Conv2d
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -501,3 +594,22 @@ template void profile_conv2d_bias<__half, __half, __half, __half>(
     Manifest &, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
     int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
     EpilogueEnum);
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
+// Conv2dConv2d
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
+template <typename TA, typename TB, typename TC, typename CompOn>
+void profile_conv2d_conv2d(Manifest &manifest, int64_t N, int64_t iH,
+                           int64_t iW, int64_t iC, int64_t oH, int64_t oW,
+                           int64_t oC, int64_t kH, int64_t kW, int64_t strideH,
+                           int64_t strideW, int64_t paddingH, int64_t paddingW,
+                           int64_t dilationH /* = 1*/,
+                           int64_t dilationW /* = 1*/) {}
+
+template void profile_conv2d_conv2d<__half, __half, __half, float>(
+    Manifest &, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
+    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t);
+template void profile_conv2d_conv2d<__half, __half, __half, __half>(
+    Manifest &, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
+    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t);

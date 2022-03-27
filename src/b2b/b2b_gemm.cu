@@ -17,16 +17,16 @@ using InstructionShape = cutlass::gemm::GemmShape<16, 8, 8>;
 
 // clang-format off
 using EpilogueOutputOp0 = 
-  cutlass::epilogue::thread::LinearCombinationRelu<
+  cutlass::epilogue::thread::LinearCombination<
     ElementOutput,
     InstructionShape::kM * InstructionShape::kN / 32,
     ElementAccumulator,
     ElementCompute,
-    cutlass::epilogue::thread::ScaleType::OnlyAlphaScaling
+    cutlass::epilogue::thread::ScaleType::Nothing
   >;
 
 using EpilogueOutputOp1 = 
-  cutlass::epilogue::thread::LinearCombinationRelu<
+  cutlass::epilogue::thread::LinearCombination<
     ElementOutput,
     128 / cutlass::sizeof_bits<ElementOutput>::value,
     ElementAccumulator,
@@ -54,9 +54,14 @@ using B2bGemm = cutlass::gemm::device::B2bGemm<
   2
 >;
 // clang-format on
+
 int main(int argc, char *argv[]) {
   Manifest manifest;
   manifest.append(new GemmGemmOperation<B2bGemm>("b2b_gemm"));
+
+  profile_gemm_gemm<__half, __half, __half, __half>(
+      manifest, 2048, 2048, 2048, LayoutEnum::RowMajor, LayoutEnum::ColumnMajor,
+      LayoutEnum::RowMajor);
 
   return 0;
 }
