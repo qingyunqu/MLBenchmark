@@ -105,10 +105,13 @@ void PrintCUDABuffer(T* mat, size_t size, size_t print_size = 0) {
 //===----------------------------------------------------------------------===//
 
 template <typename T>
-inline bool EXPECT_NEAR(T first, T second, float eps) {
-  float diff = static_cast<float>(first) - static_cast<float>(second);
-  diff = std::abs(diff / static_cast<float>(first)); // relative diff
-  if (std::abs(diff) > eps) {
+inline bool EXPECT_NEAR(T first, T second, float relative_eps,
+                        float absolute_eps) {
+  float abs_diff =
+      std::abs(static_cast<float>(first) - static_cast<float>(second));
+  float rel_diff =
+      std::abs(abs_diff / static_cast<float>(first)); // relative diff
+  if (rel_diff > relative_eps && abs_diff > absolute_eps) {
     fprintf(stderr, "    diff error, first: %f, second: %f\n",
             static_cast<float>(first), static_cast<float>(second));
     return false;
@@ -117,9 +120,10 @@ inline bool EXPECT_NEAR(T first, T second, float eps) {
 }
 
 template <typename T>
-inline bool CheckCPUBuffer(T* first, T* second, size_t size, float eps) {
+inline bool CheckCPUBuffer(T *first, T *second, size_t size, float relative_eps,
+                           float absolute_eps) {
   for (size_t i = 0; i < size; i++) {
-    if (!EXPECT_NEAR<T>(first[i], second[i], eps)) {
+    if (!EXPECT_NEAR<T>(first[i], second[i], relative_eps, absolute_eps)) {
       return false;
     }
   }
@@ -127,14 +131,16 @@ inline bool CheckCPUBuffer(T* first, T* second, size_t size, float eps) {
 }
 
 template <typename T>
-inline bool CheckCUDABuffer(T* first, T* second, size_t size, float eps) {
+inline bool CheckCUDABuffer(T *first, T *second, size_t size,
+                            float relative_eps, float absolute_eps) {
   T* h_first = (T*)malloc(size * sizeof(T));
   T* h_second = (T*)malloc(size * sizeof(T));
   CUDACHECK(cudaDeviceSynchronize());
   CUDACHECK(cudaMemcpy(h_first, first, size * sizeof(T), cudaMemcpyDeviceToHost));
   CUDACHECK(cudaMemcpy(h_second, second, size * sizeof(T), cudaMemcpyDeviceToHost));
   CUDACHECK(cudaDeviceSynchronize());
-  bool passed = CheckCPUBuffer<T>(h_first, h_second, size, eps);
+  bool passed =
+      CheckCPUBuffer<T>(h_first, h_second, size, relative_eps, absolute_eps);
   free(h_first);
   free(h_second);
   return passed;

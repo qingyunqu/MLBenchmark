@@ -211,8 +211,10 @@ int run() {
   Matmul<TA, TO>* op = new CublasMatmul<TA, TO, CompOn>((int64_t)m, (int64_t)n, (int64_t)k, true, true, false, handle);
   op->Run((TA*)tensor_a.device_ref().data(), (TB*)tensor_b.device_ref().data(), (TO*)tensor_ref_d.device_ref().data());
   CUDACHECK(cudaDeviceSynchronize());
-  
-  bool passed = CheckCUDABuffer<TO>((TO*)tensor_d.device_ref().data(), (TO*)tensor_ref_d.device_ref().data(), m * n, 1e-5f);
+
+  bool passed = CheckCUDABuffer<TO>((TO *)tensor_d.device_ref().data(),
+                                    (TO *)tensor_ref_d.device_ref().data(),
+                                    m * n, 1e-3f, 1e-5f);
   std::cout << (passed ? "Passed" : "Failed") << std::endl;
 
   time = benchmark<Op<TA, TO>>(op, stream, (TA *)tensor_a.device_ref().data(),

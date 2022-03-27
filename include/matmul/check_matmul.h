@@ -43,9 +43,9 @@ bool CheckMatmul(const T *d_A, const T *d_B, To *d_C, int64_t m, int64_t n,
         }
       }
       if (!output_transpose) {
-        check = EXPECT_NEAR(h_C[i * n + j], static_cast<To>(sum), eps);
+        check = EXPECT_NEAR(h_C[i * n + j], static_cast<To>(sum), 1e-3f, eps);
       } else {
-        check = EXPECT_NEAR(h_C[i + j * m], static_cast<To>(sum), eps);
+        check = EXPECT_NEAR(h_C[i + j * m], static_cast<To>(sum), 1e-3f, eps);
       }
       if (!check) {
         goto EXIT;

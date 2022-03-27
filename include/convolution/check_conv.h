@@ -71,8 +71,8 @@ bool CheckConv(T *input, T *filter, To *output, const std::string &layout,
               }
             }
           }
-          check =
-              EXPECT_NEAR(h_output[output_index], static_cast<To>(result), eps);
+          check = EXPECT_NEAR(h_output[output_index], static_cast<To>(result),
+                              1e-3f, eps);
           if (!check) {
             goto EXIT;
           }

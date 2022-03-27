@@ -114,7 +114,7 @@ void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
     }
     kernel->Initialize(stream, nullptr);
     kernel->Run();
-    bool passed = CheckCUDABuffer<TC>(c, ref_c, m * n, 1e-2f);
+    bool passed = CheckCUDABuffer<TC>(c, ref_c, m * n, 1e-3f, 1e-2f);
     float time = benchmark<Operation>(kernel, stream);
 #if DEBUG
     std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
@@ -223,13 +223,13 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
       continue;
     }
     kernel->SetArgument(m, n, k, (void *)a, (void *)b, (void *)c, (void *)d, 1,
-                        1.f, 0.f);
+                        1.f, /*unused beta*/ 0.f);
     if (!kernel->Check()) {
       continue;
     }
     kernel->Initialize(stream, nullptr);
     kernel->Run();
-    bool passed = CheckCUDABuffer<TC>(d, ref_d, m * n, 1e-2f);
+    bool passed = CheckCUDABuffer<TC>(d, ref_d, m * n, 1e-2f, 1e-2f);
     float time = benchmark<Operation>(kernel, stream);
 #if DEBUG
     std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
@@ -339,7 +339,7 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
     kernel->Initialize(stream, workspace.get());
     kernel->Run();
     bool passed =
-        CheckCUDABuffer<TC>(output, ref_output, N * oH * oW * oC, 1e-2f);
+        CheckCUDABuffer<TC>(output, ref_output, N * oH * oW * oC, 1e-2f, 1e-2f);
     float time = benchmark<Operation>(kernel, stream);
 #if DEBUG
     std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
@@ -461,7 +461,7 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
     kernel->Initialize(stream, workspace.get());
     kernel->Run();
     bool passed =
-        CheckCUDABuffer<TC>(output, ref_output, N * oH * oW * oC, 1e-2f);
+        CheckCUDABuffer<TC>(output, ref_output, N * oH * oW * oC, 1e-2f, 1e-2f);
     float time = benchmark<Operation>(kernel, stream);
 #if DEBUG
     std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
