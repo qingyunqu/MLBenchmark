@@ -44,3 +44,6 @@ add_subdirectory(${REPO_ROOT}/src/convolution)
 
 # matmul
 add_subdirectory(${REPO_ROOT}/src/matmul)
+
+# b2b
+add_subdirectory(${REPO_ROOT}/src/b2b)

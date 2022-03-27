@@ -57,8 +57,8 @@ void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
   CUDACHECK(cudaMalloc(&b, n * k * sizeof(TB)));
   CUDACHECK(cudaMalloc(&c, m * n * sizeof(TC)));
   CUDACHECK(cudaMalloc(&ref_c, m * n * sizeof(TC)));
-  RandCUDABuffer(a, m * k); //, -1.f, 1.f);
-  RandCUDABuffer(b, n * k); //, -1.f, 1.f);
+  RandCUDABuffer(a, m * k, -1.f, 1.f);
+  RandCUDABuffer(b, n * k, -1.f, 1.f);
   RandCUDABuffer(c, m * n);
   FillCUDABuffer(ref_c, m * n);
 
@@ -103,11 +103,11 @@ void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
       continue;
     }
     if (layout_c == LayoutEnum::RowMajor) {
-      kernel->SetArgument(m, n, k, (void *)a, (void *)b, (void *)c, (void *)c,
-                          1, 1.f, 0.f);
+      kernel->SetArgument(m, n, k, (void *)a, (void *)b, nullptr, (void *)c, 1,
+                          1.f, 0.f);
     } else {
-      kernel->SetArgument(n, m, k, (void *)b, (void *)a, (void *)c, (void *)c,
-                          1, 1.f, 0.f);
+      kernel->SetArgument(n, m, k, (void *)b, (void *)a, nullptr, (void *)c, 1,
+                          1.f, 0.f);
     }
     if (!kernel->Check()) {
       continue;
@@ -169,19 +169,19 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
   using ElementAccumulator = typename ctype_to_cutlass_type<CompOn>::type;
   TA *a = nullptr;
   TB *b = nullptr;
-  TC *c = nullptr;
+  TC *bias = nullptr;
   TC *d = nullptr;
   TC *ref_d = nullptr;
   CUDACHECK(cudaMalloc(&a, m * k * sizeof(TA)));
   CUDACHECK(cudaMalloc(&b, n * k * sizeof(TB)));
 
   assert(layout_c == LayoutEnum::RowMajor);
-  CUDACHECK(cudaMalloc(&c, n * sizeof(TC))); // only RowMajor
+  CUDACHECK(cudaMalloc(&bias, n * sizeof(TC))); // only RowMajor
   CUDACHECK(cudaMalloc(&d, m * n * sizeof(TC)));
   CUDACHECK(cudaMalloc(&ref_d, m * n * sizeof(TC)));
   RandCUDABuffer(a, m * k, -1.f, 1.f);
   RandCUDABuffer(b, n * k, -1.f, 1.f);
-  RandCUDABuffer(c, n, -1.f, 1.f); // only RowMajor
+  RandCUDABuffer(bias, n, -1.f, 1.f); // only RowMajor
   RandCUDABuffer(d, m * n);
   FillCUDABuffer(ref_d, m * n);
 
@@ -196,7 +196,7 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
   op->Run(a, b, ref_d);
   dim3 block(16, 16);
   dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y);
-  bias_add<TC><<<grid, block, 0, stream>>>(c, ref_d, m, n);
+  bias_add<TC><<<grid, block, 0, stream>>>(bias, ref_d, m, n);
   after_kernel_launch();
   if (epilogue == EpilogueEnum::Relu) {
     relu<TC><<<(m * n + 256 - 1) / 256, 256, 0, stream>>>(ref_d, m * n);
@@ -222,8 +222,8 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
     if (kernel->Trait() != trait) {
       continue;
     }
-    kernel->SetArgument(m, n, k, (void *)a, (void *)b, (void *)c, (void *)d, 1,
-                        1.f, /*unused beta*/ 0.f);
+    kernel->SetArgument(m, n, k, (void *)a, (void *)b, (void *)bias, (void *)d,
+                        1, 1.f, /*unused beta*/ 0.f);
     if (!kernel->Check()) {
       continue;
     }
@@ -241,7 +241,7 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
 
   CUDACHECK(cudaFree(a));
   CUDACHECK(cudaFree(b));
-  CUDACHECK(cudaFree(c));
+  CUDACHECK(cudaFree(bias));
   CUDACHECK(cudaFree(d));
   CUDACHECK(cudaFree(ref_d));
   delete op;
@@ -329,8 +329,7 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
     }
     kernel->SetArgument(N, iH, iW, iC, oH, oW, oC, kH, kW, strideH, strideW,
                         paddingH, paddingW, dilationH, dilationW, (void *)input,
-                        (void *)filter, (void *)output, (void *)output, 1, 1.f,
-                        0.f);
+                        (void *)filter, nullptr, (void *)output, 1, 1.f, 0.f);
     if (!kernel->Check()) {
       continue;
     }
@@ -339,7 +338,7 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
     kernel->Initialize(stream, workspace.get());
     kernel->Run();
     bool passed =
-        CheckCUDABuffer<TC>(output, ref_output, N * oH * oW * oC, 1e-2f, 1e-2f);
+        CheckCUDABuffer<TC>(output, ref_output, N * oH * oW * oC, 1e-3f, 1e-2f);
     float time = benchmark<Operation>(kernel, stream);
 #if DEBUG
     std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
@@ -452,7 +451,7 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
     kernel->SetArgument(N, iH, iW, iC, oH, oW, oC, kH, kW, strideH, strideW,
                         paddingH, paddingW, dilationH, dilationW, (void *)input,
                         (void *)filter, (void *)bias, (void *)output, 1, 1.f,
-                        0.f);
+                        /*unused beta*/ 0.f);
     if (!kernel->Check()) {
       continue;
     }
@@ -461,7 +460,7 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
     kernel->Initialize(stream, workspace.get());
     kernel->Run();
     bool passed =
-        CheckCUDABuffer<TC>(output, ref_output, N * oH * oW * oC, 1e-2f, 1e-2f);
+        CheckCUDABuffer<TC>(output, ref_output, N * oH * oW * oC, 1e-3f, 1e-2f);
     float time = benchmark<Operation>(kernel, stream);
 #if DEBUG
     std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed");
