@@ -16,7 +16,28 @@ public:
     DTypeEnum element_c;
     LayoutEnum layout_c;
     DTypeEnum accumulator;
+
+    OperationTrait() : operation(OperationEnum::Invalid) {}
+    OperationTrait(OperationEnum operation, EpilogueEnum epilogue,
+                   DTypeEnum element_a, LayoutEnum layout_a,
+                   DTypeEnum element_b, LayoutEnum layout_b,
+                   DTypeEnum element_c, LayoutEnum layout_c,
+                   DTypeEnum accumulator)
+        : operation(operation), epilogue(epilogue), element_a(element_a),
+          layout_a(layout_a), element_b(element_b), layout_b(layout_b),
+          element_c(element_c), layout_c(layout_c), accumulator(accumulator) {}
+    OperationTrait(const OperationTrait &trait)
+        : operation(trait.operation), epilogue(trait.epilogue),
+          element_a(trait.element_a), layout_a(trait.layout_a),
+          element_b(trait.element_b), layout_b(trait.layout_b),
+          element_c(trait.element_c), layout_c(trait.layout_c),
+          accumulator(trait.accumulator) {}
+
     bool operator!=(const OperationTrait &trait) const {
+      if (operation == OperationEnum::Invalid ||
+          trait.operation == OperationEnum::Invalid) {
+        return false;
+      }
       return !(operation == trait.operation && epilogue == trait.epilogue &&
                element_a == trait.element_a && element_b == trait.element_b &&
                element_c == trait.element_c && layout_a == trait.layout_a &&
@@ -43,6 +64,7 @@ public:
   virtual void Initialize(cudaStream_t stream, void *workspace) = 0;
   virtual void Run() = 0;
   virtual const OperationTrait &Trait() = 0;
+  virtual const OperationTrait &Trait1() { return OperationTrait(); }
   const char *Name() { return kernel_name; }
 
 private:

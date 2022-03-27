@@ -15,10 +15,10 @@ enable_language(CUDA)
 message(STATUS "CMAKE_CUDA_COMPILER_VERSION: ${CMAKE_CUDA_COMPILER_VERSION}")
 message(STATUS "CUDA_HOME = ${CUDA_TOOLKIT_ROOT_DIR}")
 
-include_directories("${CUDA_INCLUDE_DIRS}")
 set(bench_CUDA_LIBRARIES ${CUDA_LIBRARIES})
 list(APPEND bench_CUDA_LIBRARIES cublas cudnn)
 # set(bench_CUDA_LINK_DIRS ${CUDA_TOOLKIT_ROOT_DIR}/lib64)
+include_directories("${CUDA_INCLUDE_DIRS}")
 link_directories("${CUDA_TOOLKIT_ROOT_DIR}/lib64")
 
 set(REPO_ROOT ${PROJECT_SOURCE_DIR})

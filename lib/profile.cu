@@ -16,7 +16,7 @@
 #include "cutlass/cutlass.h"
 #include "cutlass/util/device_memory.h"
 
-#define DEBUG 0
+#define DEBUG 1
 
 struct Result {
   const char *kernel_name;
@@ -27,6 +27,15 @@ struct Result {
     return cutlass_time < result.cutlass_time;
   }
 };
+
+LayoutEnum transpose_matrix(LayoutEnum a) {
+  if (a == LayoutEnum::RowMajor) {
+    return LayoutEnum::ColumnMajor;
+  } else if (a == LayoutEnum::ColumnMajor) {
+    return LayoutEnum::RowMajor;
+  }
+  return LayoutEnum::Invalid;
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // Gemm
@@ -66,22 +75,38 @@ void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
 
   float cublas_time = benchmark<Op<TA, TC>>(op, stream, a, b, ref_c);
 
-  typename Operation::OperationTrait trait{
-      OperationEnum::Matmul,
-      EpilogueEnum::None,
-      cutlass_type_to_dtype_v<ElementInputA>,
-      layout_a,
-      cutlass_type_to_dtype_v<ElementInputB>,
-      layout_b,
-      cutlass_type_to_dtype_v<ElementOutput>,
-      layout_c,
-      cutlass_type_to_dtype_v<ElementAccumulator>};
+  typename Operation::OperationTrait trait;
+  if (layout_c == LayoutEnum::RowMajor) {
+    trait = {OperationEnum::Matmul,
+             EpilogueEnum::None,
+             cutlass_type_to_dtype_v<ElementInputA>,
+             layout_a,
+             cutlass_type_to_dtype_v<ElementInputB>,
+             layout_b,
+             cutlass_type_to_dtype_v<ElementOutput>,
+             LayoutEnum::RowMajor,
+             cutlass_type_to_dtype_v<ElementAccumulator>};
+  } else if (layout_c == LayoutEnum::ColumnMajor) {
+    trait = {OperationEnum::Matmul,
+             EpilogueEnum::None,
+             cutlass_type_to_dtype_v<ElementInputB>,
+             transpose_matrix(layout_b),
+             cutlass_type_to_dtype_v<ElementInputA>,
+             transpose_matrix(layout_a),
+             cutlass_type_to_dtype_v<ElementOutput>,
+             LayoutEnum::RowMajor,
+             cutlass_type_to_dtype_v<ElementAccumulator>};
+  }
   std::vector<Result> results;
   for (auto &kernel : manifest.kernels) {
     if (kernel->Trait() != trait) {
       continue;
     }
-    kernel->SetArgument(m, n, k, (void *)a, (void *)b, (void *)c, (void *)c);
+    if (layout_c == LayoutEnum::RowMajor) {
+      kernel->SetArgument(m, n, k, (void *)a, (void *)b, (void *)c, (void *)c);
+    } else {
+      kernel->SetArgument(n, m, k, (void *)b, (void *)a, (void *)c, (void *)c);
+    }
     if (!kernel->Check()) {
       continue;
     }
@@ -149,6 +174,7 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
   TC *ref_d = nullptr;
   CUDACHECK(cudaMalloc(&a, m * k * sizeof(TA)));
   CUDACHECK(cudaMalloc(&b, n * k * sizeof(TB)));
+
   assert(layout_c == LayoutEnum::RowMajor);
   CUDACHECK(cudaMalloc(&c, n * sizeof(TC))); // only RowMajor
   CUDACHECK(cudaMalloc(&d, m * n * sizeof(TC)));

@@ -20,29 +20,31 @@ public:
   using ElementAccumulator = typename Gemm::ElementAccumulator;
 
   GemmOperation(const char *kernel_name) : Operation(kernel_name) {
-    trait = {OperationEnum::Matmul,
-             EpilogueEnum::None,
-             cutlass_type_to_dtype_v<ElementA>,
-             cutlass_layout_to_layout_v<LayoutA>,
-             cutlass_type_to_dtype_v<ElementB>,
-             cutlass_layout_to_layout_v<LayoutB>,
-             cutlass_type_to_dtype_v<ElementC>,
-             cutlass_layout_to_layout_v<LayoutC>,
-             cutlass_type_to_dtype_v<ElementAccumulator>};
+    trait =
+        Operation::OperationTrait{OperationEnum::Matmul,
+                                  EpilogueEnum::None,
+                                  cutlass_type_to_dtype_v<ElementA>,
+                                  cutlass_layout_to_layout_v<LayoutA>,
+                                  cutlass_type_to_dtype_v<ElementB>,
+                                  cutlass_layout_to_layout_v<LayoutB>,
+                                  cutlass_type_to_dtype_v<ElementC>,
+                                  cutlass_layout_to_layout_v<LayoutC>,
+                                  cutlass_type_to_dtype_v<ElementAccumulator>};
   }
 
   GemmOperation(const char *kernel_name, OperationEnum op_enum,
                 EpilogueEnum epilogue)
       : Operation(kernel_name) {
-    trait = {op_enum,
-             epilogue,
-             cutlass_type_to_dtype_v<ElementA>,
-             cutlass_layout_to_layout_v<LayoutA>,
-             cutlass_type_to_dtype_v<ElementB>,
-             cutlass_layout_to_layout_v<LayoutB>,
-             cutlass_type_to_dtype_v<ElementC>,
-             cutlass_layout_to_layout_v<LayoutC>,
-             cutlass_type_to_dtype_v<ElementAccumulator>};
+    trait =
+        Operation::OperationTrait{op_enum,
+                                  epilogue,
+                                  cutlass_type_to_dtype_v<ElementA>,
+                                  cutlass_layout_to_layout_v<LayoutA>,
+                                  cutlass_type_to_dtype_v<ElementB>,
+                                  cutlass_layout_to_layout_v<LayoutB>,
+                                  cutlass_type_to_dtype_v<ElementC>,
+                                  cutlass_layout_to_layout_v<LayoutC>,
+                                  cutlass_type_to_dtype_v<ElementAccumulator>};
   }
 
   virtual void SetArgument(int64_t m, int64_t n, int64_t k, void *a, void *b,

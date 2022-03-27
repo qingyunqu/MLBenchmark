@@ -13,8 +13,8 @@
 #include "benchmark.h"
 #include "check.h"
 #include "cutlass_dtype.h"
+#include "matmul/CublasMatmul.h"
 #include "matmul/check_matmul.h"
-#include "matmul/cublas_matmul.h"
 #include "util/util.h"
 #include <memory>
 
@@ -214,8 +214,10 @@ int run() {
   
   bool passed = CheckCUDABuffer<TO>((TO*)tensor_d.device_ref().data(), (TO*)tensor_ref_d.device_ref().data(), m * n, 1e-5f);
   std::cout << (passed ? "Passed" : "Failed") << std::endl;
-  
-  time = benchmark<TA, TO>(op, stream, (TA*)tensor_a.device_ref().data(), (TB*)tensor_b.device_ref().data(), (TO*)tensor_ref_d.device_ref().data());
+
+  time = benchmark<Op<TA, TO>>(op, stream, (TA *)tensor_a.device_ref().data(),
+                               (TB *)tensor_b.device_ref().data(),
+                               (TO *)tensor_ref_d.device_ref().data());
   printf("cublas time: %f ms\n", time);
   CUBLASCHECK(cublasDestroy(handle));
   delete op;
