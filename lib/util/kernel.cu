@@ -19,11 +19,21 @@ template <typename T> __global__ void relu(T *result, int64_t size) {
   }
 }
 
+__device__ inline float fast_exp(float x) { return ::exp(x); }
+
+__device__ inline float fast_exp(__half x) {
+#if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 10) &&                  \
+    (__CUDA_ARCH__ >= 750)
+  return ::hexp(x);
+#else
+  return fast_exp(float(x));
+#endif
+}
+
 template <typename T> __global__ void sigmoid(T *result, int64_t size) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id < size) {
-    result[id] =
-        static_cast<T>(1.f / (1.f + exp(-static_cast<double>(result[id]))));
+    result[id] = T(1) / (T(1) + static_cast<T>(fast_exp(-result[id])));
   }
 }
 
