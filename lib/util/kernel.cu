@@ -22,8 +22,7 @@ template <typename T> __global__ void relu(T *result, int64_t size) {
 __device__ inline float fast_exp(float x) { return ::exp(x); }
 
 __device__ inline float fast_exp(__half x) {
-#if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 10) &&                  \
-    (__CUDA_ARCH__ >= 750)
+#if (__CUDACC_VER_MAJOR__ >= 10) && (__CUDA_ARCH__ >= 750)
   return ::hexp(x);
 #else
   return fast_exp(float(x));
