@@ -48,7 +48,8 @@ public:
 
   Operation(const char *kernel_name) : kernel_name(kernel_name) {}
   virtual void SetArgument(int64_t m, int64_t n, int64_t k, void *a, void *b,
-                           void *c, void *d) {
+                           void *c, void *d, int64_t split_k_slices,
+                           float alpha, float beta) {
     assert(false && "should not reach this");
   }
   virtual void SetArgument(int64_t N, int64_t iH, int64_t iW, int64_t iC,
@@ -56,7 +57,8 @@ public:
                            int64_t kW, int64_t strideH, int64_t strideW,
                            int64_t paddingH, int64_t paddingW,
                            int64_t dilationH, int64_t dilationW, void *input,
-                           void *filter, void *bias, void *output) {
+                           void *filter, void *bias, void *output,
+                           int64_t split_k_slices, float alpha, float beta) {
     assert(false && "should not reach this");
   }
   virtual bool Check() = 0;

@@ -48,7 +48,8 @@ public:
   }
 
   virtual void SetArgument(int64_t m, int64_t n, int64_t k, void *a, void *b,
-                           void *c, void *d) override {
+                           void *c, void *d, int64_t split_k_slices,
+                           float alpha, float beta) override {
     typename cutlass::gemm::GemmCoord problem_size(m, n, k);
     LayoutA layoutA(k);
     LayoutB layoutB(n);
@@ -67,8 +68,8 @@ public:
                  {(ElementB *)b, layoutB},
                  {(ElementC *)c, layoutC},
                  {(ElementC *)d, layoutC},
-                 {(ElementAccumulator)1, (ElementAccumulator)0},
-                 /*split_k_slices=*/1};
+                 {(ElementAccumulator)alpha, (ElementAccumulator)beta},
+                 split_k_slices};
   }
 
   virtual bool Check() override {

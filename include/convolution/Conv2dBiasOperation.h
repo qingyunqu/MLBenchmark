@@ -22,15 +22,16 @@ public:
                            int64_t kW, int64_t strideH, int64_t strideW,
                            int64_t paddingH, int64_t paddingW,
                            int64_t dilationH, int64_t dilationW, void *input,
-                           void *filter, void *bias, void *output) override {
+                           void *filter, void *bias, void *output,
+                           int64_t split_k_slices, float alpha,
+                           float beta) override {
     cutlass::Tensor4DCoord input_size(N, iH, iW, iC);
     cutlass::Tensor4DCoord filter_size(oC, kH, kW, iC);
     cutlass::Tensor4DCoord output_size(N, oH, oW, oC);
     typename cutlass::conv::Conv2dProblemSize problem_size(
         input_size, filter_size, {paddingH, paddingH, paddingW, paddingW},
         {strideH, strideW}, {dilationH, dilationW}, output_size,
-        cutlass::conv::Mode::kCrossCorrelation,
-        /*split_k_slices*/ 1);
+        cutlass::conv::Mode::kCrossCorrelation, split_k_slices);
 
     assert(cutlass_layout_to_layout_v<LayoutA> == LayoutEnum::NHWC);
     assert(cutlass_layout_to_layout_v<LayoutB> == LayoutEnum::NHWC);
@@ -43,6 +44,6 @@ public:
                        {(ElementB *)filter, layoutB},
                        {(ElementC *)bias, LayoutC()},
                        {(ElementC *)output, layoutC},
-                       {(ElementAccumulator)1, (ElementAccumulator)0}};
+                       {(ElementAccumulator)alpha, (ElementAccumulator)beta}};
   }
 };

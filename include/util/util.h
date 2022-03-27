@@ -107,6 +107,7 @@ void PrintCUDABuffer(T* mat, size_t size, size_t print_size = 0) {
 template <typename T>
 inline bool EXPECT_NEAR(T first, T second, float eps) {
   float diff = static_cast<float>(first) - static_cast<float>(second);
+  diff = std::abs(diff / static_cast<float>(first)); // relative diff
   if (std::abs(diff) > eps) {
     fprintf(stderr, "    diff error, first: %f, second: %f\n",
             static_cast<float>(first), static_cast<float>(second));

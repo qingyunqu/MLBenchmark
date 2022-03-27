@@ -7,6 +7,7 @@ project(bench C CXX CUDA)
 set(CMAKE_CXX_STANDARD 17)
 
 add_definitions(-w)
+add_definitions(-O4)
 
 find_package(CUDA REQUIRED)
 set(CMAKE_CUDA_ARCHITECTURES 75)
