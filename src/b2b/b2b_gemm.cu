@@ -125,8 +125,8 @@ int main(int argc, char *argv[]) {
           manifest);
 
   profile_gemm_gemm<__half, __half, __half, float>(
-      manifest, 4096, 4096, 4096, LayoutEnum::RowMajor, LayoutEnum::ColumnMajor,
-      LayoutEnum::RowMajor);
+      manifest, 4096, 4096, 4096, 4096, LayoutEnum::RowMajor,
+      LayoutEnum::ColumnMajor, LayoutEnum::RowMajor);
 
   return 0;
 }

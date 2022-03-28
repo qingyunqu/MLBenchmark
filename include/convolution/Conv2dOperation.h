@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cutlass/conv/conv2d_problem_size.h"
 #include "cutlass/conv/device/implicit_gemm_convolution.h"
 #include "cutlass/cutlass.h"
 

@@ -55,6 +55,7 @@ Operation *get_kernel_by_name(Manifest &manifest, const std::string &name) {
       return kernel;
     }
   }
+  return nullptr;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -296,43 +297,54 @@ template void profile_gemm_bias<__half, __half, __half, __half>(
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename TA, typename TB, typename TC, typename CompOn>
-void profile_gemm_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
-                       LayoutEnum layout_a, LayoutEnum layout_b,
+void profile_gemm_gemm(Manifest &manifest, int64_t m0, int64_t n0, int64_t k0,
+                       int64_t n1, LayoutEnum layout_a, LayoutEnum layout_b,
                        LayoutEnum layout_c) {
   using ElementInputA = typename ctype_to_cutlass_type<TA>::type;
   using ElementInputB = typename ctype_to_cutlass_type<TB>::type;
   using ElementOutput = typename ctype_to_cutlass_type<TC>::type;
   using ElementAccumulator = typename ctype_to_cutlass_type<CompOn>::type;
-  TA *a = nullptr;
-  TB *b = nullptr;
-  TC *b1 = nullptr;
-  TC *d = nullptr;
-  TC *ref_d = nullptr;
-  CUDACHECK(cudaMalloc(&a, m * k * sizeof(TA)));
-  CUDACHECK(cudaMalloc(&b, n * k * sizeof(TB)));
-  CUDACHECK(cudaMalloc(&b1, m * n * sizeof(TC)));
-  CUDACHECK(cudaMalloc(&d, m * n * sizeof(TC)));
-  CUDACHECK(cudaMalloc(&ref_d, m * n * sizeof(TC)));
-  RandCUDABuffer(a, m * k, -1.f, 1.f);
-  RandCUDABuffer(b, n * k, -1.f, 1.f);
-  RandCUDABuffer(b1, m * n, -1.f, 1.f);
-  RandCUDABuffer(d, m * n);
-  FillCUDABuffer(ref_d, m * n);
+  assert(layout_c == LayoutEnum::RowMajor);
+  int64_t m1 = m0, k1 = n0;
+  TA *a0 = nullptr;
+  TB *b0 = nullptr;
+  TB *b1 = nullptr;
+  TC *d1 = nullptr;
+  TC *ref_d0 = nullptr;
+  TC *ref_d1 = nullptr;
+  CUDACHECK(cudaMalloc(&a0, m0 * k0 * sizeof(TA)));
+  CUDACHECK(cudaMalloc(&b0, n0 * k0 * sizeof(TB)));
+  CUDACHECK(cudaMalloc(&b1, n1 * k1 * sizeof(TB)));
+  CUDACHECK(cudaMalloc(&d1, m1 * n1 * sizeof(TC)));
+  CUDACHECK(cudaMalloc(&ref_d0, m0 * n0 * sizeof(TC)));
+  CUDACHECK(cudaMalloc(&ref_d1, m1 * n1 * sizeof(TC)));
+  RandCUDABuffer(a0, m0 * k0, -1.f, 1.f);
+  RandCUDABuffer(b0, n0 * k0, -1.f, 1.f);
+  RandCUDABuffer(b1, n1 * k1, -1.f, 1.f);
+  RandCUDABuffer(d1, m1 * n1);
+  FillCUDABuffer(ref_d1, m1 * n1);
 
   cudaStream_t stream = nullptr;
   cublasHandle_t handle;
   CUBLASCHECK(cublasCreate(&handle));
   CUBLASCHECK(cublasSetStream(handle, stream));
-  Matmul<TA, TC> *op = new CublasMatmul<TA, TC, CompOn>(
-      m, n, k, layout_a == LayoutEnum::ColumnMajor,
-      layout_b == LayoutEnum::ColumnMajor, layout_c == LayoutEnum::ColumnMajor,
-      handle);
-  cutlass::device_memory::allocation<uint8_t> ref_c(m * n * sizeof(TC));
   {
-    op->Run(a, b, (TC *)ref_c.get());
-    float time0 = benchmark(op, stream, a, b, (TC *)ref_c.get());
-    op->Run((TC *)ref_c.get(), b1, ref_d);
-    float time1 = benchmark(op, stream, (TC *)ref_c.get(), b1, ref_d);
+    Matmul<TA, TC> *op0 = new CublasMatmul<TA, TC, CompOn>(
+        m0, n0, k0, layout_a == LayoutEnum::ColumnMajor,
+        layout_b == LayoutEnum::ColumnMajor,
+        layout_c == LayoutEnum::ColumnMajor, handle);
+    op0->Run(a0, b0, ref_d0);
+    float time0 = benchmark(op0, stream, a0, b0, ref_d0);
+    delete op0;
+
+    Matmul<TC, TC> *op1 = new CublasMatmul<TC, TC, CompOn>(
+        m1, n1, k1, layout_c == LayoutEnum::ColumnMajor,
+        layout_b == LayoutEnum::ColumnMajor,
+        layout_c == LayoutEnum::ColumnMajor, handle);
+    op1->Run(ref_d0, b1, ref_d1);
+    float time1 = benchmark(op1, stream, ref_d0, b1, ref_d1);
+    delete op1;
+
     std::cout << "cublas time0: " << time0 << "\n";
     std::cout << "cublas time1: " << time1 << "\n";
     std::cout << "cublas total time: " << time0 + time1 << "\n\n";
@@ -361,32 +373,34 @@ void profile_gemm_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
             cutlass_type_to_dtype_v<ElementAccumulator>};
   {
     auto kernel0 = get_kernel_by_name(manifest, "Gemm0");
-    cutlass::device_memory::allocation<uint8_t> temp_c(m * n * sizeof(TC));
-    kernel0->SetArgument(m, n, k, (void *)a, (void *)b, nullptr, temp_c.get(),
-                         1, 1.f, 0.f);
+    assert(*kernel0->Trait() == trait);
+    cutlass::device_memory::allocation<uint8_t> temp_d0(m0 * n0 * sizeof(TC));
+    kernel0->SetArgument(m0, n0, k0, (void *)a0, (void *)b0, nullptr,
+                         temp_d0.get(), 1, 1.f, 0.f);
     assert(kernel0->Check());
     kernel0->Initialize(stream, nullptr);
     kernel0->Run();
-    bool passed = CheckCUDABuffer<TC>((TC *)temp_c.get(), (TC *)ref_c.get(),
-                                      m * n, 1e-3f, 1e-2f);
+    bool passed =
+        CheckCUDABuffer<TC>((TC *)temp_d0.get(), ref_d0, m0 * n0, 1e-3f, 1e-2f);
     std::cout << kernel0->Name() << ", " << (passed ? "Passed" : "Failed")
               << ", ";
     float time0 = benchmark(kernel0, stream);
-    std::cout << time0 << "\n\n";
+    std::cout << time0 << "\n";
 
     auto kernel1 = get_kernel_by_name(manifest, "Gemm1");
-    cutlass::device_memory::allocation<uint8_t> temp_d(m * n * sizeof(TC));
-    kernel1->SetArgument(m, n, k, temp_c.get(), (void *)b1, nullptr,
-                         temp_d.get(), 1, 1.f, 0.f);
+    assert(*kernel1->Trait() == trait);
+    cutlass::device_memory::allocation<uint8_t> temp_d1(m1 * n1 * sizeof(TC));
+    kernel1->SetArgument(m1, n1, k1, temp_d0.get(), (void *)b1, nullptr,
+                         temp_d1.get(), 1, 1.f, 0.f);
     assert(kernel1->Check());
     kernel1->Initialize(stream, nullptr);
     kernel1->Run();
     passed =
-        CheckCUDABuffer<TC>((TC *)temp_d.get(), ref_d, m * n, 1e-3f, 1e-2f);
+        CheckCUDABuffer<TC>((TC *)temp_d1.get(), ref_d1, m1 * n1, 1e-3f, 1e-2f);
     std::cout << kernel1->Name() << ", " << (passed ? "Passed" : "Failed")
               << ", ";
     float time1 = benchmark(kernel1, stream);
-    std::cout << time1 << "\n\n";
+    std::cout << time1 << "\n";
 
     std::cout << "Total Time: " << time0 + time1 << "\n\n";
   }
@@ -397,14 +411,14 @@ void profile_gemm_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
     if (*(kernel->Trait()) != trait || *(kernel->Trait1()) != trait1) {
       continue;
     }
-    kernel->SetArgument(m, n, k, (void *)a, (void *)b, (void *)b1, (void *)d, 1,
-                        1.f, 0.f);
+    kernel->SetArgument(m0, n0, k0, m1, n1, k1, (void *)a0, (void *)b0, nullptr,
+                        (void *)b1, nullptr, (void *)d1, 1, 1.f, 0.f, 1.f, 0.f);
     if (!kernel->Check()) {
       continue;
     }
     kernel->Initialize(stream, nullptr);
     kernel->Run();
-    bool passed = CheckCUDABuffer<TC>(d, ref_d, m * n, 1e-3f, 1e-2f);
+    bool passed = CheckCUDABuffer<TC>(d1, ref_d1, m1 * n1, 1e-3f, 1e-2f);
 #if DEBUG
     std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed")
               << ", ";
@@ -413,19 +427,23 @@ void profile_gemm_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
     std::cout << time << "\n\n";
   }
 
-  CUDACHECK(cudaFree(a));
-  CUDACHECK(cudaFree(b));
+  CUDACHECK(cudaFree(a0));
+  CUDACHECK(cudaFree(b0));
   CUDACHECK(cudaFree(b1));
-  CUDACHECK(cudaFree(d));
-  CUDACHECK(cudaFree(ref_d));
-  delete op;
+  CUDACHECK(cudaFree(d1));
+  CUDACHECK(cudaFree(ref_d0));
+  CUDACHECK(cudaFree(ref_d1));
   CUBLASCHECK(cublasDestroy(handle));
 }
 
-template void profile_gemm_gemm<__half, __half, __half, __half>(
-    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
-template void profile_gemm_gemm<__half, __half, __half, float>(
-    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
+template void
+profile_gemm_gemm<__half, __half, __half, __half>(Manifest &, int64_t, int64_t,
+                                                  int64_t, int64_t, LayoutEnum,
+                                                  LayoutEnum, LayoutEnum);
+template void
+profile_gemm_gemm<__half, __half, __half, float>(Manifest &, int64_t, int64_t,
+                                                 int64_t, int64_t, LayoutEnum,
+                                                 LayoutEnum, LayoutEnum);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // Conv2d
@@ -663,16 +681,147 @@ template void profile_conv2d_bias<__half, __half, __half, __half>(
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename TA, typename TB, typename TC, typename CompOn>
-void profile_conv2d_conv2d(Manifest &manifest, int64_t N, int64_t iH,
-                           int64_t iW, int64_t iC, int64_t oH, int64_t oW,
-                           int64_t oC, int64_t kH, int64_t kW, int64_t strideH,
-                           int64_t strideW, int64_t paddingH, int64_t paddingW,
-                           int64_t dilationH /* = 1*/,
-                           int64_t dilationW /* = 1*/) {}
+void profile_conv2d_conv2d(Manifest &manifest, int64_t N0, int64_t iH0,
+                           int64_t iW0, int64_t iC0, int64_t oH0, int64_t oW0,
+                           int64_t oC0, int64_t kH0, int64_t kW0,
+                           int64_t strideH0, int64_t strideW0,
+                           int64_t paddingH0, int64_t paddingW0,
+                           int64_t dilationH0, int64_t dilationW0, int64_t N1,
+                           int64_t iH1, int64_t iW1, int64_t iC1, int64_t oH1,
+                           int64_t oW1, int64_t oC1, int64_t kH1, int64_t kW1,
+                           int64_t strideH1, int64_t strideW1,
+                           int64_t paddingH1, int64_t paddingW1,
+                           int64_t dilationH1, int64_t dilationW1) {
+  // only profile NHWC layout
+  using ElementInputA = typename ctype_to_cutlass_type<TA>::type;
+  using ElementInputB = typename ctype_to_cutlass_type<TB>::type;
+  using ElementOutput = typename ctype_to_cutlass_type<TC>::type;
+  using ElementAccumulator = typename ctype_to_cutlass_type<CompOn>::type;
+  TA *input0 = nullptr;
+  TB *filter0 = nullptr;
+  TC *ref_output0 = nullptr;
+  TB *filter1 = nullptr;
+  TC *output1 = nullptr;
+  TC *ref_output1 = nullptr;
+  CUDACHECK(cudaMalloc(&input0, N0 * iH0 * iW0 * iC0 * sizeof(TA)));
+  CUDACHECK(cudaMalloc(&filter0, oC0 * kH0 * kW0 * iC0 * sizeof(TB)));
+  CUDACHECK(cudaMalloc(&ref_output0, N0 * oH0 * oW0 * oC0 * sizeof(TC)));
+  CUDACHECK(cudaMalloc(&filter1, oC1 * kH1 * kW1 * iC1 * sizeof(TB)));
+  CUDACHECK(cudaMalloc(&output1, N1 * oH1 * oW1 * oC1 * sizeof(TC)));
+  CUDACHECK(cudaMalloc(&ref_output1, N1 * oH1 * oW1 * oC1 * sizeof(TC)));
+  RandCUDABuffer(input0, N0 * iH0 * iW0 * iC0, -1.f, 1.f);
+  RandCUDABuffer(filter0, oC0 * kH0 * kW0 * iC0, -1.f, 1.f);
+  RandCUDABuffer(ref_output0, N0 * oH0 * oW0 * oC0);
+  RandCUDABuffer(filter1, oC1 * kH1 * kW1 * iC1, -1.f, 1.f);
+  RandCUDABuffer(output1, N1 * oH1 * oW1 * oC1);
+  RandCUDABuffer(ref_output1, N1 * oH1 * oW1 * oC1);
+
+  cudaStream_t stream = nullptr;
+  cudnnHandle_t handle;
+  CUDNNCHECK(cudnnCreate(&handle));
+  CUDNNCHECK(cudnnSetStream(handle, stream));
+  {
+    Conv<TA, TC> *op0 = new CudnnConv<TA, TC, CompOn>(
+        "NHWC", N0, iC0, iH0, iW0, oC0, kH0, kW0, oH0, oW0, strideH0, strideW0,
+        paddingH0, paddingW0, dilationH0, dilationW0, handle);
+    op0->Run(input0, filter0, ref_output0);
+    float time0 = benchmark(op0, stream, input0, filter0, ref_output0);
+    delete op0;
+
+    Conv<TA, TC> *op1 = new CudnnConv<TA, TC, CompOn>(
+        "NHWC", N1, iC1, iH1, iW1, oC1, kH1, kW1, oH1, oW1, strideH1, strideW1,
+        paddingH1, paddingW1, dilationH1, dilationW1, handle);
+    op0->Run(ref_output0, filter1, ref_output1);
+    float time1 = benchmark(op1, stream, ref_output0, filter1, ref_output1);
+    delete op1;
+
+    std::cout << "cudnn time0: " << time0 << "\n";
+    std::cout << "cudnn time1: " << time1 << "\n";
+    std::cout << "cudnn total time: " << time0 + time1 << "\n\n";
+  }
+  CUDACHECK(cudaDeviceSynchronize());
+
+  typename Operation::OperationTrait trait;
+  typename Operation::OperationTrait trait1;
+  trait = {OperationEnum::Conv2d,
+           EpilogueEnum::None,
+           cutlass_type_to_dtype_v<ElementInputA>,
+           LayoutEnum::NHWC,
+           cutlass_type_to_dtype_v<ElementInputB>,
+           LayoutEnum::NHWC,
+           cutlass_type_to_dtype_v<ElementOutput>,
+           LayoutEnum::NHWC,
+           cutlass_type_to_dtype_v<ElementAccumulator>};
+  trait1 = {OperationEnum::Conv2d,
+            EpilogueEnum::None,
+            cutlass_type_to_dtype_v<ElementOutput>,
+            LayoutEnum::NHWC,
+            cutlass_type_to_dtype_v<ElementInputB>,
+            LayoutEnum::NHWC,
+            cutlass_type_to_dtype_v<ElementOutput>,
+            LayoutEnum::NHWC,
+            cutlass_type_to_dtype_v<ElementAccumulator>};
+  {
+    auto kernel0 = get_kernel_by_name(manifest, "Conv2d0");
+    assert(kernel0 != nullptr);
+    assert(*kernel0->Trait() == trait);
+    cutlass::device_memory::allocation<uint8_t> temp_output0(N0 * oH0 * oW0 *
+                                                             oC0 * sizeof(TC));
+    kernel0->SetArgument(N0, iH0, iW0, iC0, oH0, oW0, oC0, kH0, kW0, strideH0,
+                         strideW0, paddingH0, paddingW0, dilationH0, dilationW0,
+                         (void *)input0, (void *)filter0, nullptr,
+                         (void *)temp_output0.get(), 1, 1.f, 0.f);
+    assert(kernel0->Check());
+    cutlass::device_memory::allocation<uint8_t> workspace0(
+        kernel0->GetWorkspaceSize());
+    kernel0->Initialize(stream, workspace0.get());
+    kernel0->Run();
+    bool passed = CheckCUDABuffer<TC>((TC *)temp_output0.get(), ref_output0,
+                                      N0 * oH0 * oW0 * oC0, 1e-2f, 1e-1f);
+    std::cout << kernel0->Name() << ", " << (passed ? "Passed" : "Failed")
+              << ", ";
+    float time0 = benchmark(kernel0, stream);
+    std::cout << time0 << "\n";
+
+    auto kernel1 = get_kernel_by_name(manifest, "Conv2d1");
+    assert(kernel1 != nullptr);
+    assert(*kernel1->Trait() == trait1);
+    cutlass::device_memory::allocation<uint8_t> temp_output1(N1 * oH1 * oW1 *
+                                                             oC1 * sizeof(TC));
+    kernel1->SetArgument(N1, iH1, iW1, iC1, oH1, oW1, oC1, kH1, kW1, strideH1,
+                         strideW1, paddingH1, paddingW1, dilationH1, dilationW1,
+                         (void *)temp_output0.get(), (void *)filter1, nullptr,
+                         (void *)temp_output1.get(), 1, 1.f, 0.f);
+    assert(kernel0->Check());
+    cutlass::device_memory::allocation<uint8_t> workspace1(
+        kernel1->GetWorkspaceSize());
+    kernel1->Initialize(stream, workspace1.get());
+    kernel1->Run();
+    passed = CheckCUDABuffer<TC>((TC *)temp_output1.get(), ref_output1,
+                                 N1 * oH1 * oW1 * oC1, 1e-2f, 1e-1f);
+    std::cout << kernel1->Name() << ", " << (passed ? "Passed" : "Failed")
+              << ", ";
+    float time1 = benchmark(kernel1, stream);
+    std::cout << time1 << "\n";
+
+    std::cout << "Total Time: " << time0 + time1 << "\n\n";
+  }
+
+  CUDACHECK(cudaFree(input0));
+  CUDACHECK(cudaFree(filter0));
+  CUDACHECK(cudaFree(ref_output0));
+  CUDACHECK(cudaFree(filter1));
+  CUDACHECK(cudaFree(output1));
+  CUDACHECK(cudaFree(ref_output1));
+}
 
 template void profile_conv2d_conv2d<__half, __half, __half, float>(
     Manifest &, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
-    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t);
+    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
+    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
+    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t);
 template void profile_conv2d_conv2d<__half, __half, __half, __half>(
     Manifest &, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
-    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t);
+    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
+    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
+    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t);
