@@ -38,6 +38,8 @@ LayoutEnum transpose_matrix(LayoutEnum a) {
 }
 
 void print_operation_trait(std::ostream &out, Operation::OperationTrait trait) {
+  out << operation_enum_to_str(trait.operation)
+      << epilogue_enum_to_str(trait.epilogue) << "    ";
   out << dtype_enum_to_str(trait.element_a) << "-"
       << dtype_enum_to_str(trait.element_b) << "-"
       << dtype_enum_to_str(trait.element_c) << "-"
@@ -45,6 +47,14 @@ void print_operation_trait(std::ostream &out, Operation::OperationTrait trait) {
   out << layout_enum_to_str(trait.layout_a) << "-"
       << layout_enum_to_str(trait.layout_b) << "-"
       << layout_enum_to_str(trait.layout_c) << "\n";
+}
+
+Operation *get_kernel_by_name(Manifest &manifest, const std::string &name) {
+  for (auto kernel : manifest.kernels) {
+    if (kernel->Name() == name) {
+      return kernel;
+    }
+  }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -318,8 +328,15 @@ void profile_gemm_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
       layout_b == LayoutEnum::ColumnMajor, layout_c == LayoutEnum::ColumnMajor,
       handle);
   cutlass::device_memory::allocation<uint8_t> ref_c(m * n * sizeof(TC));
-  op->Run(a, b, (TC *)ref_c.get());
-  op->Run((TC *)ref_c.get(), b1, ref_d);
+  {
+    op->Run(a, b, (TC *)ref_c.get());
+    float time0 = benchmark(op, stream, a, b, (TC *)ref_c.get());
+    op->Run((TC *)ref_c.get(), b1, ref_d);
+    float time1 = benchmark(op, stream, (TC *)ref_c.get(), b1, ref_d);
+    std::cout << "cublas time0: " << time0 << "\n";
+    std::cout << "cublas time1: " << time1 << "\n";
+    std::cout << "cublas total time: " << time0 + time1 << "\n\n";
+  }
   CUDACHECK(cudaDeviceSynchronize());
 
   typename Operation::OperationTrait trait;
@@ -342,45 +359,44 @@ void profile_gemm_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
             cutlass_type_to_dtype_v<ElementOutput>,
             LayoutEnum::RowMajor,
             cutlass_type_to_dtype_v<ElementAccumulator>};
-  for (auto &kernel : manifest.kernels) {
-    std::cout << "kernel name: " << kernel->Name() << "\n";
-    if (*(kernel->Trait()) == trait && kernel->Trait1() == nullptr) {
-      std::cout << "select: " << kernel->Name() << "\n";
-      cutlass::device_memory::allocation<uint8_t> temp_c(m * n * sizeof(TC));
-      kernel->SetArgument(m, n, k, (void *)a, (void *)b, nullptr, temp_c.get(),
-                          1, 1.f, 0.f);
-      assert(kernel->Check());
-      kernel->Initialize(stream, nullptr);
-      kernel->Run();
-      bool passed = CheckCUDABuffer<TC>((TC *)temp_c.get(), (TC *)ref_c.get(),
-                                        m * n, 1e-3f, 1e-2f);
-      std::cout << kernel->Name() << ", " << (passed ? "Passed" : "Failed")
-                << "\n\n";
+  {
+    auto kernel0 = get_kernel_by_name(manifest, "Gemm0");
+    cutlass::device_memory::allocation<uint8_t> temp_c(m * n * sizeof(TC));
+    kernel0->SetArgument(m, n, k, (void *)a, (void *)b, nullptr, temp_c.get(),
+                         1, 1.f, 0.f);
+    assert(kernel0->Check());
+    kernel0->Initialize(stream, nullptr);
+    kernel0->Run();
+    bool passed = CheckCUDABuffer<TC>((TC *)temp_c.get(), (TC *)ref_c.get(),
+                                      m * n, 1e-3f, 1e-2f);
+    std::cout << kernel0->Name() << ", " << (passed ? "Passed" : "Failed")
+              << ", ";
+    float time0 = benchmark(kernel0, stream);
+    std::cout << time0 << "\n\n";
 
-      cutlass::device_memory::allocation<uint8_t> temp_d(m * n * sizeof(TC));
-      kernel->SetArgument(m, n, k, temp_c.get(), (void *)b1, nullptr,
-                          temp_d.get(), 1, 1.f, 0.f);
-      assert(kernel->Check());
-      kernel->Initialize(stream, nullptr);
-      kernel->Run();
-      passed =
-          CheckCUDABuffer<TC>((TC *)temp_d.get(), ref_d, m * n, 1e-3f, 1e-2f);
-      std::cout << kernel->Name() << ", " << (passed ? "Passed" : "Failed")
-                << "\n\n";
-    }
+    auto kernel1 = get_kernel_by_name(manifest, "Gemm1");
+    cutlass::device_memory::allocation<uint8_t> temp_d(m * n * sizeof(TC));
+    kernel1->SetArgument(m, n, k, temp_c.get(), (void *)b1, nullptr,
+                         temp_d.get(), 1, 1.f, 0.f);
+    assert(kernel1->Check());
+    kernel1->Initialize(stream, nullptr);
+    kernel1->Run();
+    passed =
+        CheckCUDABuffer<TC>((TC *)temp_d.get(), ref_d, m * n, 1e-3f, 1e-2f);
+    std::cout << kernel1->Name() << ", " << (passed ? "Passed" : "Failed")
+              << ", ";
+    float time1 = benchmark(kernel1, stream);
+    std::cout << time1 << "\n\n";
+
+    std::cout << "Total Time: " << time0 + time1 << "\n\n";
   }
   for (auto &kernel : manifest.kernels) {
     if (kernel->Trait1() == nullptr) {
-      std::cout << "first kernel name: " << kernel->Name() << "\n\n";
       continue;
     }
     if (*(kernel->Trait()) != trait || *(kernel->Trait1()) != trait1) {
-      print_operation_trait(std::cout, *(kernel->Trait()));
-      print_operation_trait(std::cout, *(kernel->Trait1()));
-      std::cout << "second kernel name: " << kernel->Name() << "\n";
       continue;
     }
-    std::cout << "select: " << kernel->Name() << "\n";
     kernel->SetArgument(m, n, k, (void *)a, (void *)b, (void *)b1, (void *)d, 1,
                         1.f, 0.f);
     if (!kernel->Check()) {
@@ -391,8 +407,10 @@ void profile_gemm_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
     bool passed = CheckCUDABuffer<TC>(d, ref_d, m * n, 1e-3f, 1e-2f);
 #if DEBUG
     std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed")
-              << "\n";
+              << ", ";
 #endif
+    float time = benchmark(kernel, stream);
+    std::cout << time << "\n\n";
   }
 
   CUDACHECK(cudaFree(a));

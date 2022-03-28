@@ -42,33 +42,41 @@ public:
                                   cutlass_type_to_dtype_v<ElementAccumulator>};
   }
 
-  virtual void SetArgument(int64_t m, int64_t n, int64_t k, void *a, void *b0,
-                           void *b1, void *d, int64_t /*split_k_slices*/,
-                           float alpha, float beta) override {
-    typename cutlass::gemm::GemmCoord problem_size_0(m, n, k);
-    typename cutlass::gemm::GemmCoord problem_size_1(m, n, k);
-    LayoutA layoutA(k);
-    LayoutB layoutB(n);
-    LayoutC layoutC(n);
+  virtual void SetArgument(int64_t m0, int64_t n0, int64_t k0, int64_t m1,
+                           int64_t n1, int64_t k1, void *a0, void *b0, void *c0,
+                           void *b1, void *c1, void *d1, int64_t split_k_slices,
+                           float alpha0, float beta0, float alpha1,
+                           float beta1) override {
+    typename cutlass::gemm::GemmCoord problem_size_0(m0, n0, k1);
+    typename cutlass::gemm::GemmCoord problem_size_1(m1, n1, k1);
+    assert(cutlass_layout_to_layout_v<LayoutC> == LayoutEnum::RowMajor);
+    assert(m0 == m1 && n0 == k1);
+    LayoutA layoutA0(k0);
+    LayoutB layoutB0(n0);
+    LayoutC layoutC0(n0);
+    LayoutB layoutB1(n1);
+    LayoutC layoutC1(n1);
+    LayoutC layoutD1(n1);
     if (cutlass_layout_to_layout_v<LayoutA> == LayoutEnum::ColumnMajor) {
-      layoutA = LayoutA(m);
+      layoutA0 = LayoutA(m0);
     }
     if (cutlass_layout_to_layout_v<LayoutB> == LayoutEnum::ColumnMajor) {
-      layoutB = LayoutB(k);
+      layoutB0 = LayoutB(k0);
+      layoutB1 = LayoutB(k1);
     }
-    if (cutlass_layout_to_layout_v<LayoutC> == LayoutEnum::ColumnMajor) {
-      layoutC = LayoutC(m);
-    }
+    // if (cutlass_layout_to_layout_v<LayoutC> == LayoutEnum::ColumnMajor) {
+    //   layoutC = LayoutC(m0);
+    // }
     arguments = {problem_size_0,
                  problem_size_1,
-                 {(ElementA *)a, layoutA},
-                 {(ElementB *)b0, layoutB},
-                 {nullptr, layoutC},
-                 {(ElementB *)b1, layoutB},
-                 {nullptr, layoutC},
-                 {(ElementC *)d, layoutC},
-                 {(ElementAccumulator)alpha, (ElementAccumulator)beta},
-                 {(ElementAccumulator)alpha, (ElementAccumulator)beta}};
+                 {(ElementA *)a0, layoutA0},
+                 {(ElementB *)b0, layoutB0},
+                 {(ElementC *)c0, layoutC0},
+                 {(ElementB *)b1, layoutB1},
+                 {(ElementC *)c1, layoutC1},
+                 {(ElementC *)d1, layoutD1},
+                 {(ElementAccumulator)alpha0, (ElementAccumulator)beta0},
+                 {(ElementAccumulator)alpha1, (ElementAccumulator)beta1}};
   }
 
   virtual bool Check() override {

@@ -13,10 +13,10 @@ using ElementOutput = cutlass::half_t;
 using ElementAccumulator = float;
 using ElementCompute = ElementAccumulator;
 
-using ThreadblockShape0 = cutlass::gemm::GemmShape<128, 64, 64>;
-using WarpShape0 = cutlass::gemm::GemmShape<32, 64, 64>;
-using ThreadblockShape1 = cutlass::gemm::GemmShape<128, 128, 32>;
-using WarpShape1 = cutlass::gemm::GemmShape<32, 128, 32>;
+using ThreadblockShape0 = cutlass::gemm::GemmShape<256, 128, 32>;
+using WarpShape0 = cutlass::gemm::GemmShape<64, 64, 32>;
+using ThreadblockShape1 = cutlass::gemm::GemmShape<256, 128, 32>;
+using WarpShape1 = cutlass::gemm::GemmShape<64, 64, 32>;
 using InstructionShape = cutlass::gemm::GemmShape<16, 8, 8>;
 
 // clang-format off
@@ -32,7 +32,7 @@ using EpilogueOutputOp0 =
 using EpilogueOutputOp1 = 
   cutlass::epilogue::thread::LinearCombination<
     ElementOutput,
-    128 / cutlass::sizeof_bits<ElementOutput>::value,
+    8, // 128 / cutlass::sizeof_bits<ElementOutput>::value,
     ElementAccumulator,
     ElementCompute
   >;
@@ -51,8 +51,12 @@ using Gemm0 = cutlass::gemm::device::Gemm<
   WarpShape0,
   InstructionShape,
   EpilogueOutputOp0,
-  cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<1>,
-  2
+  cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<8>,
+  2,
+  8,
+  8,
+  false,
+  cutlass::arch::OpMultiplyAdd
 >;
 
 using Gemm1 = cutlass::gemm::device::Gemm<
@@ -69,8 +73,12 @@ using Gemm1 = cutlass::gemm::device::Gemm<
     WarpShape1,
     InstructionShape,
     EpilogueOutputOp1,
-    cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<1>,
-    2
+    cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<8>,
+    2,
+    8,
+    8,
+    false,
+    cutlass::arch::OpMultiplyAdd
   >;
 
 using B2bGemm = cutlass::gemm::device::B2bGemm<
@@ -90,8 +98,12 @@ using B2bGemm = cutlass::gemm::device::B2bGemm<
   InstructionShape,
   EpilogueOutputOp0,
   EpilogueOutputOp1,
-  cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<1>,
-  2
+  cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<8>,
+  2,
+  8,
+  8,
+  false,
+  cutlass::arch::OpMultiplyAdd
 >;
 // clang-format on
 
@@ -113,7 +125,7 @@ int main(int argc, char *argv[]) {
           manifest);
 
   profile_gemm_gemm<__half, __half, __half, float>(
-      manifest, 2048, 2048, 2048, LayoutEnum::RowMajor, LayoutEnum::ColumnMajor,
+      manifest, 4096, 4096, 4096, LayoutEnum::RowMajor, LayoutEnum::ColumnMajor,
       LayoutEnum::RowMajor);
 
   return 0;

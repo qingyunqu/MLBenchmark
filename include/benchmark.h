@@ -42,6 +42,41 @@ float benchmark(Op *op, cudaStream_t stream, Args... args) {
   return elapsedTime / run;
 }
 
+template <typename Op0, typename Op1>
+float benchmark2(Op0 *op0, Op1 *op1, cudaStream_t stream) {
+  cudaEvent_t start, stop;
+  CUDACHECK(cudaEventCreate(&start));
+  CUDACHECK(cudaEventCreate(&stop));
+  float elapsedTime = 0.f;
+
+  CUDACHECK(cudaEventRecord(start, stream));
+  for (int i = 0; i < warm_up; i++) { // warm up
+    op0->Run();
+    op1->Run();
+  }
+  CUDACHECK(cudaEventRecord(stop, stream));
+  CUDACHECK(cudaEventSynchronize(stop));
+  elapsedTime = 0.f;
+  CUDACHECK(cudaEventElapsedTime(&elapsedTime, start, stop));
+
+  int run = std::ceil(run_time / (elapsedTime / warm_up));
+  // printf("run: %d\n", run);
+  CUDACHECK(cudaEventRecord(start, stream));
+  for (int i = 0; i < run; i++) {
+    op0->Run();
+    op1->Run();
+  }
+  CUDACHECK(cudaEventRecord(stop, stream));
+  CUDACHECK(cudaEventSynchronize(stop));
+  elapsedTime = 0.f;
+  CUDACHECK(cudaEventElapsedTime(&elapsedTime, start, stop));
+
+  CUDACHECK(cudaDeviceSynchronize());
+  CUDACHECK(cudaEventDestroy(start));
+  CUDACHECK(cudaEventDestroy(stop));
+  return elapsedTime / run;
+}
+
 template <typename Gemm>
 float benchmark_cutlass(Gemm* op, cudaStream_t stream) {
   cudaEvent_t start, stop;
