@@ -81,11 +81,13 @@ public:
                  problem_size_1,
                  {(ElementA *)input0, layoutA0},
                  {(ElementB *)filter0, layoutB0},
-                 {(ElementC *)nullptr, layoutC0},
-                 cutlass::TensorRef<ElementScaleBias, LayoutScaleBias>(),
-                 cutlass::TensorRef<ElementScaleBias, LayoutScaleBias>(),
+                 {(ElementC *)bias0, layoutC0},
+                 cutlass::TensorRef<ElementScaleBias, LayoutScaleBias>(
+                     (ElementScaleBias *)bias0, LayoutScaleBias(0)),
+                 cutlass::TensorRef<ElementScaleBias, LayoutScaleBias>(
+                     (ElementScaleBias *)bias0, LayoutScaleBias(0)),
                  {(ElementB *)filter1, layoutB1},
-                 {(ElementC *)nullptr, layoutD1},
+                 {(ElementC *)bias1, layoutD1},
                  {(ElementC *)output1, layoutD1},
                  {(ElementAccumulator)alpha0, (ElementAccumulator)beta0},
                  {(ElementAccumulator)alpha1, (ElementAccumulator)beta1},
@@ -93,6 +95,8 @@ public:
   }
 
   virtual bool Check() override {
+    auto status = conv2d.can_implement(arguments);
+    CUTLASS_CHECK(status);
     return conv2d.can_implement(arguments) == cutlass::Status::kSuccess;
   }
 

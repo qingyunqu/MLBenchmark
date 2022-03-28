@@ -6,7 +6,7 @@
 #include "cutlass_dtype.h"
 #include "matmul/CublasMatmul.h"
 #include "profile.h"
-#include "util/kernel.cuh"
+#include "util/kernel.h"
 #include "util/util.h"
 
 #include <algorithm>
@@ -215,16 +215,11 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
       layout_b == LayoutEnum::ColumnMajor, layout_c == LayoutEnum::ColumnMajor,
       handle);
   op->Run(a, b, ref_d);
-  dim3 block(16, 16);
-  dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y);
-  bias_add<TC><<<grid, block, 0, stream>>>(bias, ref_d, m, n);
-  after_kernel_launch();
+  BiasAdd(bias, ref_d, m, n, stream);
   if (epilogue == EpilogueEnum::Relu) {
-    relu<TC><<<(m * n + 256 - 1) / 256, 256, 0, stream>>>(ref_d, m * n);
-    after_kernel_launch();
+    Relu(ref_d, m * n, stream);
   } else if (epilogue == EpilogueEnum::Sigmoid) {
-    sigmoid<TC><<<(m * n + 256 - 1) / 256, 256, 0, stream>>>(ref_d, m * n);
-    after_kernel_launch();
+    Sigmoid(ref_d, m * n, stream);
   }
   CUDACHECK(cudaDeviceSynchronize());
 
@@ -591,19 +586,11 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
       "NHWC", N, iC, iH, iW, oC, kH, kW, oH, oW, strideH, strideW, paddingH,
       paddingW, dilationH, dilationW, handle);
   op->Run(input, filter, ref_output);
-  dim3 block(16, 16);
-  dim3 grid((oC + block.x - 1) / block.x,
-            (N * oH * oW + block.y - 1) / block.y);
-  bias_add<TC><<<grid, block, 0, stream>>>(bias, ref_output, N * oH * oW, oC);
-  after_kernel_launch();
+  BiasAdd(bias, ref_output, N * oH * oW, oC, stream);
   if (epilogue == EpilogueEnum::Relu) {
-    relu<TC><<<(N * oH * oW * oC + 256 - 1) / 256, 256, 0, stream>>>(
-        ref_output, N * oH * oW * oC);
-    after_kernel_launch();
+    Relu(ref_output, N * oH * oW * oC, stream);
   } else if (epilogue == EpilogueEnum::Sigmoid) {
-    sigmoid<TC><<<(N * oH * oW * oC + 256 - 1) / 256, 256, 0, stream>>>(
-        ref_output, N * oH * oW * oC);
-    after_kernel_launch();
+    Sigmoid(ref_output, N * oH * oW * oC, stream);
   }
   CUDACHECK(cudaDeviceSynchronize());
 
@@ -792,7 +779,7 @@ void profile_conv2d_conv2d(Manifest &manifest, int64_t N0, int64_t iH0,
                          strideW1, paddingH1, paddingW1, dilationH1, dilationW1,
                          (void *)temp_output0.get(), (void *)filter1, nullptr,
                          (void *)temp_output1.get(), 1, 1.f, 0.f);
-    assert(kernel0->Check());
+    assert(kernel1->Check());
     cutlass::device_memory::allocation<uint8_t> workspace1(
         kernel1->GetWorkspaceSize());
     kernel1->Initialize(stream, workspace1.get());
@@ -805,6 +792,31 @@ void profile_conv2d_conv2d(Manifest &manifest, int64_t N0, int64_t iH0,
     std::cout << time1 << "\n";
 
     std::cout << "Total Time: " << time0 + time1 << "\n\n";
+  }
+
+  {
+    auto kernel = get_kernel_by_name(manifest, "b2b_conv2d");
+    assert(kernel != nullptr);
+    assert(*kernel->Trait() == trait && *kernel->Trait1() == trait1);
+    kernel->SetArgument(
+        N0, iH0, iW0, iC0, oH0, oW0, oC0, kH0, kW0, strideH0, strideW0,
+        paddingH0, paddingW0, dilationH0, dilationW0, N1, iH1, iW1, iC1, oH1,
+        oW1, oC1, kH1, kW1, strideH1, strideW1, paddingH1, paddingW1,
+        dilationH1, dilationW1, (void *)input0, (void *)filter0,
+        /*bias0*/ (void *)ref_output0, (void *)filter1,
+        /*bias1*/ (void *)output1, (void *)output1, 1, 1.f, 0.f, 1.f, 0.f);
+    assert(kernel->Check());
+    cutlass::device_memory::allocation<uint8_t> workspace(
+        kernel->GetWorkspaceSize());
+    kernel->Initialize(stream, workspace.get());
+    kernel->Run();
+    CUDACHECK(cudaDeviceSynchronize());
+    bool passed = CheckCUDABuffer<TC>(output1, ref_output1,
+                                      N1 * oH1 * oW1 * oC1, 1e-2f, 1e-1f);
+    std::cout << kernel->Name() << ", " << (passed ? "Passed" : "Failed")
+              << ", ";
+    float time = benchmark(kernel, stream);
+    std::cout << time << "\n";
   }
 
   CUDACHECK(cudaFree(input0));
