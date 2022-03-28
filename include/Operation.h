@@ -36,13 +36,25 @@ public:
     bool operator!=(const OperationTrait &trait) const {
       if (operation == OperationEnum::Invalid ||
           trait.operation == OperationEnum::Invalid) {
-        return false;
+        return true;
       }
       return !(operation == trait.operation && epilogue == trait.epilogue &&
                element_a == trait.element_a && element_b == trait.element_b &&
                element_c == trait.element_c && layout_a == trait.layout_a &&
                layout_b == trait.layout_b && layout_c == trait.layout_c &&
                accumulator == trait.accumulator);
+    }
+
+    bool operator==(const OperationTrait &trait) const {
+      if (operation == OperationEnum::Invalid ||
+          trait.operation == OperationEnum::Invalid) {
+        return false;
+      }
+      return operation == trait.operation && epilogue == trait.epilogue &&
+             element_a == trait.element_a && element_b == trait.element_b &&
+             element_c == trait.element_c && layout_a == trait.layout_a &&
+             layout_b == trait.layout_b && layout_c == trait.layout_c &&
+             accumulator == trait.accumulator;
     }
   };
 
@@ -65,8 +77,8 @@ public:
   virtual int64_t GetWorkspaceSize() = 0;
   virtual void Initialize(cudaStream_t stream, void *workspace) = 0;
   virtual void Run() = 0;
-  virtual const OperationTrait &Trait() = 0;
-  virtual const OperationTrait &Trait1() { return OperationTrait(); }
+  virtual const OperationTrait *Trait() = 0;
+  virtual const OperationTrait *Trait1() { return nullptr; }
   const char *Name() { return kernel_name; }
 
 private:

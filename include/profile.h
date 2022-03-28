@@ -81,3 +81,12 @@ inline const char *epilogue_enum_to_str(EpilogueEnum a) {
     return "Unknown";
   }
 }
+
+inline const char *dtype_enum_to_str(DTypeEnum a) {
+  if (a == DTypeEnum::Float32) {
+    return "fp32";
+  } else if (a == DTypeEnum::Float16) {
+    return "fp16";
+  }
+  return "invalid_dtype";
+}

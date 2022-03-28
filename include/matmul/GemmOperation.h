@@ -84,7 +84,7 @@ public:
 
   virtual void Run() override { CUTLASS_CHECK(gemm()); }
 
-  virtual const OperationTrait &Trait() override { return trait; }
+  virtual const OperationTrait *Trait() override { return &trait; }
 
 private:
   Gemm gemm;

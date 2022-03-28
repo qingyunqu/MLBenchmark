@@ -65,9 +65,9 @@ public:
 
   virtual void Run() override { CUTLASS_CHECK(conv2d()); }
 
-  virtual const OperationTrait &Trait() override { return trait; }
+  virtual const OperationTrait *Trait() override { return &trait; }
 
-  virtual const OperationTrait &Trait1() override { return trait1; }
+  virtual const OperationTrait *Trait1() override { return &trait1; }
 
 private:
   ConvConv conv2d;

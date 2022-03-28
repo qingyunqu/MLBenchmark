@@ -37,6 +37,16 @@ LayoutEnum transpose_matrix(LayoutEnum a) {
   return LayoutEnum::Invalid;
 }
 
+void print_operation_trait(std::ostream &out, Operation::OperationTrait trait) {
+  out << dtype_enum_to_str(trait.element_a) << "-"
+      << dtype_enum_to_str(trait.element_b) << "-"
+      << dtype_enum_to_str(trait.element_c) << "-"
+      << dtype_enum_to_str(trait.accumulator) << "    ";
+  out << layout_enum_to_str(trait.layout_a) << "-"
+      << layout_enum_to_str(trait.layout_b) << "-"
+      << layout_enum_to_str(trait.layout_c) << "\n";
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // Gemm
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -99,7 +109,7 @@ void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
   }
   std::vector<Result> results;
   for (auto &kernel : manifest.kernels) {
-    if (kernel->Trait() != trait) {
+    if (*(kernel->Trait()) != trait) {
       continue;
     }
     if (layout_c == LayoutEnum::RowMajor) {
@@ -219,7 +229,7 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
       cutlass_type_to_dtype_v<ElementAccumulator>};
   std::vector<Result> results;
   for (auto &kernel : manifest.kernels) {
-    if (kernel->Trait() != trait) {
+    if (*(kernel->Trait()) != trait) {
       continue;
     }
     kernel->SetArgument(m, n, k, (void *)a, (void *)b, (void *)bias, (void *)d,
@@ -307,9 +317,9 @@ void profile_gemm_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
       m, n, k, layout_a == LayoutEnum::ColumnMajor,
       layout_b == LayoutEnum::ColumnMajor, layout_c == LayoutEnum::ColumnMajor,
       handle);
-  cutlass::device_memory::allocation<uint8_t> workspace(m * n * sizeof(TC));
-  op->Run(a, b, (TC *)workspace.get());
-  op->Run((TC *)workspace.get(), b1, ref_d);
+  cutlass::device_memory::allocation<uint8_t> ref_c(m * n * sizeof(TC));
+  op->Run(a, b, (TC *)ref_c.get());
+  op->Run((TC *)ref_c.get(), b1, ref_d);
   CUDACHECK(cudaDeviceSynchronize());
 
   typename Operation::OperationTrait trait;
@@ -333,9 +343,44 @@ void profile_gemm_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
             LayoutEnum::RowMajor,
             cutlass_type_to_dtype_v<ElementAccumulator>};
   for (auto &kernel : manifest.kernels) {
-    if (kernel->Trait() != trait || kernel->Trait1() != trait1) {
+    std::cout << "kernel name: " << kernel->Name() << "\n";
+    if (*(kernel->Trait()) == trait && kernel->Trait1() == nullptr) {
+      std::cout << "select: " << kernel->Name() << "\n";
+      cutlass::device_memory::allocation<uint8_t> temp_c(m * n * sizeof(TC));
+      kernel->SetArgument(m, n, k, (void *)a, (void *)b, nullptr, temp_c.get(),
+                          1, 1.f, 0.f);
+      assert(kernel->Check());
+      kernel->Initialize(stream, nullptr);
+      kernel->Run();
+      bool passed = CheckCUDABuffer<TC>((TC *)temp_c.get(), (TC *)ref_c.get(),
+                                        m * n, 1e-3f, 1e-2f);
+      std::cout << kernel->Name() << ", " << (passed ? "Passed" : "Failed")
+                << "\n\n";
+
+      cutlass::device_memory::allocation<uint8_t> temp_d(m * n * sizeof(TC));
+      kernel->SetArgument(m, n, k, temp_c.get(), (void *)b1, nullptr,
+                          temp_d.get(), 1, 1.f, 0.f);
+      assert(kernel->Check());
+      kernel->Initialize(stream, nullptr);
+      kernel->Run();
+      passed =
+          CheckCUDABuffer<TC>((TC *)temp_d.get(), ref_d, m * n, 1e-3f, 1e-2f);
+      std::cout << kernel->Name() << ", " << (passed ? "Passed" : "Failed")
+                << "\n\n";
+    }
+  }
+  for (auto &kernel : manifest.kernels) {
+    if (kernel->Trait1() == nullptr) {
+      std::cout << "first kernel name: " << kernel->Name() << "\n\n";
       continue;
     }
+    if (*(kernel->Trait()) != trait || *(kernel->Trait1()) != trait1) {
+      print_operation_trait(std::cout, *(kernel->Trait()));
+      print_operation_trait(std::cout, *(kernel->Trait1()));
+      std::cout << "second kernel name: " << kernel->Name() << "\n";
+      continue;
+    }
+    std::cout << "select: " << kernel->Name() << "\n";
     kernel->SetArgument(m, n, k, (void *)a, (void *)b, (void *)b1, (void *)d, 1,
                         1.f, 0.f);
     if (!kernel->Check()) {
@@ -417,7 +462,7 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
       cutlass_type_to_dtype_v<ElementAccumulator>};
   std::vector<Result> results;
   for (auto kernel : manifest.kernels) {
-    if (kernel->Trait() != trait) {
+    if (*(kernel->Trait()) != trait) {
       continue;
     }
     kernel->SetArgument(N, iH, iW, iC, oH, oW, oC, kH, kW, strideH, strideW,
@@ -538,7 +583,7 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
       cutlass_type_to_dtype_v<ElementAccumulator>};
   std::vector<Result> results;
   for (auto kernel : manifest.kernels) {
-    if (kernel->Trait() != trait) {
+    if (*(kernel->Trait()) != trait) {
       continue;
     }
     kernel->SetArgument(N, iH, iW, iC, oH, oW, oC, kH, kW, strideH, strideW,

@@ -93,7 +93,7 @@ public:
 
   virtual void Run() override { CUTLASS_CHECK(conv2d()); }
 
-  virtual const OperationTrait &Trait() override { return trait; }
+  virtual const OperationTrait *Trait() override { return &trait; }
 
 private:
   Conv2d conv2d;
