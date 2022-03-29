@@ -121,26 +121,33 @@ inline bool EXPECT_NEAR(T first, T second, float relative_eps,
 
 template <typename T>
 inline bool CheckCPUBuffer(T *first, T *second, size_t size, float relative_eps,
-                           float absolute_eps) {
+                           float absolute_eps, size_t print_size = 1) {
+  size_t count = 0;
+  bool ret = true;
   for (size_t i = 0; i < size; i++) {
     if (!EXPECT_NEAR<T>(first[i], second[i], relative_eps, absolute_eps)) {
-      return false;
+      ret = false;
+      count++;
+      if (count == print_size) {
+        return ret;
+      }
     }
   }
-  return true;
+  return ret;
 }
 
 template <typename T>
 inline bool CheckCUDABuffer(T *first, T *second, size_t size,
-                            float relative_eps, float absolute_eps) {
+                            float relative_eps, float absolute_eps,
+                            size_t print_size = 1) {
   T* h_first = (T*)malloc(size * sizeof(T));
   T* h_second = (T*)malloc(size * sizeof(T));
   CUDACHECK(cudaDeviceSynchronize());
   CUDACHECK(cudaMemcpy(h_first, first, size * sizeof(T), cudaMemcpyDeviceToHost));
   CUDACHECK(cudaMemcpy(h_second, second, size * sizeof(T), cudaMemcpyDeviceToHost));
   CUDACHECK(cudaDeviceSynchronize());
-  bool passed =
-      CheckCPUBuffer<T>(h_first, h_second, size, relative_eps, absolute_eps);
+  bool passed = CheckCPUBuffer<T>(h_first, h_second, size, relative_eps,
+                                  absolute_eps, print_size);
   free(h_first);
   free(h_second);
   return passed;

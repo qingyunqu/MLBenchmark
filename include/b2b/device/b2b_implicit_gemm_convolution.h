@@ -133,20 +133,35 @@ public:
     cutlass::gemm::GemmCoord problem_size_0 = implicit_gemm_problem_size(kConvolutionalOperator, args.problem_size_0);
     cutlass::gemm::GemmCoord problem_size_1 = implicit_gemm_problem_size(kConvolutionalOperator, args.problem_size_1);
 
-    if(problem_size_0.m() != problem_size_1.m())
+    if (problem_size_0.m() != problem_size_1.m()) {
+      printf("kErrorInvalidProblem 1, %d, %d\n", problem_size_0.m(),
+             problem_size_1.m());
       return Status::kErrorInvalidProblem;
+    }
 
-    if(problem_size_0.n() != problem_size_1.k())
+    if (problem_size_0.n() != problem_size_1.k()) {
+      printf("kErrorInvalidProblem 2, %d, %d\n", problem_size_0.n(),
+             problem_size_1.k());
       return Status::kErrorInvalidProblem;
+    }
 
-    if(args.problem_size_1.R != 1 || args.problem_size_1.S != 1)
+    if (args.problem_size_1.R != 1 || args.problem_size_1.S != 1) {
+      printf("kErrorInvalidProblem 3, %d, %d\n", args.problem_size_1.R,
+             args.problem_size_1.S);
       return Status::kErrorInvalidProblem;
+    }
 
-    if(problem_size_0.n() > ThreadblockShape0::kN)
+    if (problem_size_0.n() > ThreadblockShape0::kN) {
+      printf("kErrorInvalidProblem 4, %d, %d\n", problem_size_0.n(),
+             ThreadblockShape0::kN);
       return Status::kErrorInvalidProblem;
-    
-    if(problem_size_1.n() > ThreadblockShape1::kN)
+    }
+
+    if (problem_size_1.n() > ThreadblockShape1::kN) {
+      printf("kErrorInvalidProblem 5, %d, %d\n", problem_size_1.n(),
+             ThreadblockShape1::kN);
       return Status::kErrorInvalidProblem;
+    }
 
     return Status::kSuccess;
   }

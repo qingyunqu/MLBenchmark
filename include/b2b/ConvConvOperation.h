@@ -77,17 +77,19 @@ public:
     LayoutC layoutC0(oC0, oC0 * oW0, oC0 * oW0 * oH0);
     LayoutB layoutB1(iC1, iC1 * kW1, iC1 * kW1 * kH1);
     LayoutC layoutD1(oC1, oC1 * oW1, oC1 * oW1 * oH1);
+    printf("ElementScaleBias: %s\n",
+           dtype_enum_to_str(cutlass_type_to_dtype_v<ElementScaleBias>));
     arguments = {problem_size_0,
                  problem_size_1,
                  {(ElementA *)input0, layoutA0},
                  {(ElementB *)filter0, layoutB0},
-                 {(ElementC *)bias0, layoutC0},
+                 {(ElementC *)nullptr, layoutC0},
                  cutlass::TensorRef<ElementScaleBias, LayoutScaleBias>(
                      (ElementScaleBias *)bias0, LayoutScaleBias(0)),
                  cutlass::TensorRef<ElementScaleBias, LayoutScaleBias>(
-                     (ElementScaleBias *)bias0, LayoutScaleBias(0)),
+                     (ElementScaleBias *)bias1, LayoutScaleBias(0)),
                  {(ElementB *)filter1, layoutB1},
-                 {(ElementC *)bias1, layoutD1},
+                 {(ElementC *)nullptr, layoutD1},
                  {(ElementC *)output1, layoutD1},
                  {(ElementAccumulator)alpha0, (ElementAccumulator)beta0},
                  {(ElementAccumulator)alpha1, (ElementAccumulator)beta1},

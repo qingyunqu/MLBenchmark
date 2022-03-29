@@ -13,7 +13,7 @@
 using ElementA           = cutlass::half_t; 
 using ElementB           = cutlass::half_t; 
 using ElementC           = cutlass::half_t; 
-using ElementAccumulator = cutlass::half_t; 
+using ElementAccumulator = float; 
 using ElementCompute     = ElementAccumulator; 
 
 using ThreadblockShape0 = cutlass::gemm::GemmShape<256, 128, 32>;
@@ -32,7 +32,7 @@ using Conv2dFpropKernel0 = typename cutlass::conv::kernel::DefaultConv2dFprop<
   ThreadblockShape0,
   WarpShape0,
   InstructionShape,
-  cutlass::epilogue::thread::LinearCombination<
+  cutlass::epilogue::thread::LinearCombinationRelu<
     ElementC,
     128 / cutlass::sizeof_bits<ElementC>::value,
     ElementAccumulator,
@@ -82,7 +82,7 @@ using EpilogueOutputOp0 =
   >;
 
 using EpilogueOutputOp1 = 
-  cutlass::epilogue::thread::LinearCombinationRelu<
+  cutlass::epilogue::thread::LinearCombination<
     ElementC,
     128 / cutlass::sizeof_bits<ElementC>::value,
     ElementAccumulator,
@@ -164,7 +164,7 @@ int main(int argc, char *argv[]) {
   printf("oH1: %d, oW1: %d\n", oH1, oW1);
 
 
-  profile_conv2d_conv2d<__half, __half, __half, __half>(
+  profile_conv2d_conv2d<__half, __half, __half, float>(
     manifest, N0, iH0, iW0, iC0, oH0, oW0, oC0, kH0, kW0, strideH0, strideW0, paddingH0,
     paddingW0, dilationH0, dilationW0, N1, iH1, iW1, iC1, oH1, oW1, oC1, kH1, kW1, strideH1, strideW1, paddingH1,
     paddingW1, dilationH1, dilationW1);

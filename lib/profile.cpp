@@ -714,6 +714,8 @@ void profile_conv2d_conv2d(Manifest &manifest, int64_t N0, int64_t iH0,
     op0->Run(input0, filter0, ref_output0);
     float time0 = benchmark(op0, stream, input0, filter0, ref_output0);
     delete op0;
+    Relu(ref_output0, N0 * oH0 * oW0 * oC0, stream);
+    CUDACHECK(cudaDeviceSynchronize());
 
     Conv<TA, TC> *op1 = new CudnnConv<TA, TC, CompOn>(
         "NHWC", N1, iC1, iH1, iW1, oC1, kH1, kW1, oH1, oW1, strideH1, strideW1,
@@ -798,13 +800,17 @@ void profile_conv2d_conv2d(Manifest &manifest, int64_t N0, int64_t iH0,
     auto kernel = get_kernel_by_name(manifest, "b2b_conv2d");
     assert(kernel != nullptr);
     assert(*kernel->Trait() == trait && *kernel->Trait1() == trait1);
+    cutlass::device_memory::allocation<uint8_t> scale0(oC0 * sizeof(CompOn));
+    cutlass::device_memory::allocation<uint8_t> bias0(oC0 * sizeof(CompOn));
+    FillCUDABuffer((CompOn *)scale0.get(), 1.f);
+    FillCUDABuffer((CompOn *)bias0.get(), 0.f);
     kernel->SetArgument(
         N0, iH0, iW0, iC0, oH0, oW0, oC0, kH0, kW0, strideH0, strideW0,
         paddingH0, paddingW0, dilationH0, dilationW0, N1, iH1, iW1, iC1, oH1,
         oW1, oC1, kH1, kW1, strideH1, strideW1, paddingH1, paddingW1,
         dilationH1, dilationW1, (void *)input0, (void *)filter0,
-        /*bias0*/ (void *)ref_output0, (void *)filter1,
-        /*bias1*/ (void *)output1, (void *)output1, 1, 1.f, 0.f, 1.f, 0.f);
+        /*bias0*/ (void *)scale0.get(), (void *)filter1,
+        /*bias1*/ (void *)bias0.get(), (void *)output1, 1, 1.f, 0.f, 1.f, 0.f);
     assert(kernel->Check());
     cutlass::device_memory::allocation<uint8_t> workspace(
         kernel->GetWorkspaceSize());
@@ -812,7 +818,7 @@ void profile_conv2d_conv2d(Manifest &manifest, int64_t N0, int64_t iH0,
     kernel->Run();
     CUDACHECK(cudaDeviceSynchronize());
     bool passed = CheckCUDABuffer<TC>(output1, ref_output1,
-                                      N1 * oH1 * oW1 * oC1, 1e-2f, 1e-1f);
+                                      N1 * oH1 * oW1 * oC1, 1e-2f, 1e-1f, 10);
     std::cout << kernel->Name() << ", " << (passed ? "Passed" : "Failed")
               << ", ";
     float time = benchmark(kernel, stream);

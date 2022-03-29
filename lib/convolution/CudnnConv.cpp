@@ -10,6 +10,44 @@
 #include <iostream>
 #include <string>
 
+const char *cudnn_math_type_to_str(cudnnMathType_t mathType) {
+  switch (mathType) {
+  case CUDNN_DEFAULT_MATH:
+    return "CUDNN_DEFAULT_MATH";
+  case CUDNN_TENSOR_OP_MATH:
+    return "CUDNN_TENSOR_OP_MATH";
+  case CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION:
+    return "CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION";
+  case CUDNN_FMA_MATH:
+    return "CUDNN_FMA_MATH";
+  default:
+    return "";
+  }
+}
+
+const char *cudnn_algo_to_str(cudnnConvolutionFwdAlgo_t algo) {
+  switch (algo) {
+  case CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM:
+    return "CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM";
+  case CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM:
+    return "CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM";
+  case CUDNN_CONVOLUTION_FWD_ALGO_GEMM:
+    return "CUDNN_CONVOLUTION_FWD_ALGO_GEMM";
+  case CUDNN_CONVOLUTION_FWD_ALGO_DIRECT:
+    return "CUDNN_CONVOLUTION_FWD_ALGO_DIRECT";
+  case CUDNN_CONVOLUTION_FWD_ALGO_FFT:
+    return "CUDNN_CONVOLUTION_FWD_ALGO_FFT";
+  case CUDNN_CONVOLUTION_FWD_ALGO_FFT_TILING:
+    return "CUDNN_CONVOLUTION_FWD_ALGO_FFT_TILING";
+  case CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD:
+    return "CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD";
+  case CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED:
+    return "CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED";
+  default:
+    return "";
+  }
+}
+
 template <typename T, typename To, typename CompOn>
 CudnnConv<T, To, CompOn>::CudnnConv(const std::string &layout, int64_t N,
                                     int64_t iC, int64_t iH, int64_t iW,
@@ -57,6 +95,8 @@ CudnnConv<T, To, CompOn>::CudnnConv(const std::string &layout, int64_t N,
                                         /*kernel_height=*/kH,
                                         /*kernel_width=*/kW));
   CUDNNCHECK(cudnnCreateConvolutionDescriptor(&convolution_descriptor));
+  CUDNNCHECK(cudnnSetConvolutionMathType(convolution_descriptor,
+                                         CUDNN_TENSOR_OP_MATH));
   CUDNNCHECK(cudnnSetConvolution2dDescriptor(convolution_descriptor,
                                              /*pad_h=*/paddingH,
                                              /*pad_w=*/paddingW,
@@ -67,12 +107,20 @@ CudnnConv<T, To, CompOn>::CudnnConv(const std::string &layout, int64_t N,
                                              /*mode=*/CUDNN_CROSS_CORRELATION,
                                              /*computeType=*/compute_dtype));
 
-  int returnedAlgoCount = 0;
+  int returnedAlgoCount;
+  // cudnnConvolutionFwdAlgoPerf_t results[10];
   CUDNNCHECK(cudnnFindConvolutionForwardAlgorithm(
       handle, input_descriptor, filter_descriptor, convolution_descriptor,
       output_descriptor,
       /*requestedAlgoCount=*/1, &returnedAlgoCount, &perf));
   assert(returnedAlgoCount == 1);
+  // printf("returnedAlgoCount: %d\n", returnedAlgoCount);
+  // for (int i = 0; i < returnedAlgoCount; i++) {
+  //   printf("algo: %s\n", cudnn_algo_to_str(results[i].algo));
+  //   printf("time: %f ms\n", results[i].time);
+  //   printf("mathType: %s\n\n", cudnn_math_type_to_str(results[i].mathType));
+  // }
+  // perf = results[0];
 
   CUDACHECK(cudaMalloc(&workspace, perf.memory));
 }
