@@ -47,7 +47,25 @@ public:
 private:
   cudnnTensorDescriptor_t bias_descriptor;
   cudnnActivationDescriptor_t act_descriptor;
-  EpilogueEnum epilogue;
+};
+
+template <typename T> class CudnnActivation : public Op<T> {
+public:
+  CudnnActivation(const std::vector<int64_t> &shape, EpilogueEnum epilogue,
+                  cudnnHandle_t handle);
+
+  virtual bool Check() { return true; }
+
+  virtual void SetArgument(T *_input) override { this->input = _input; }
+  virtual void Run() override;
+
+  virtual ~CudnnActivation();
+
+private:
+  T *input = nullptr;
+  cudnnHandle_t(handle);
+  cudnnTensorDescriptor_t input_descriptor;
+  cudnnActivationDescriptor_t act_descriptor;
 };
 
 template <typename T>

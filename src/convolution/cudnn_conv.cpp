@@ -105,7 +105,11 @@ void RunBias(const std::string &layout, int64_t N, int64_t iH, int64_t iW,
       paddingW, dilateH, dilateW, handle, EpilogueEnum::None);
   op1->Initialize();
   op1->Run(a, b, bias, c);
-  CudnnActivate(handle, c, {N, oH, oW, oC}, EpilogueEnum::Sigmoid);
+  auto *act =
+      new CudnnActivation<To>({N, oH, oW, oC}, EpilogueEnum::Sigmoid, handle);
+  act->SetArgument(c);
+  act->Run();
+  delete act;
 
   bool passed =
       CheckCUDABuffer<To>(c, ref_c, N * oH * oW * oC, 1e-3f, 1e-2f, 20);

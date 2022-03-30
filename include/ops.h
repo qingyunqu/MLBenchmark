@@ -13,6 +13,8 @@ public:
   virtual void Initialize() {
     assert(false && "should not reach this");
   }
+  virtual void SetArgument(T *) { assert(false && "should not reach this"); }
+  virtual void Run() { assert(false && "should not reach this"); }
   virtual void Run(T *, T *, To *) {
     assert(false && "should not reach this");
   }

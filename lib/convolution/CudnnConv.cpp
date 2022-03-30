@@ -119,8 +119,7 @@ CudnnConvBias<T, To, CompOn>::CudnnConvBias(
     int64_t dilateW, cudnnHandle_t handle, EpilogueEnum epilogue)
     : CudnnConv<T, To, CompOn>(layout, N, iC, iH, iW, oC, kH, kW, oH, oW,
                                strideH, strideW, paddingH, paddingW, dilateH,
-                               dilateW, handle),
-      epilogue(epilogue) {
+                               dilateW, handle) {
   auto output_dtype = ctype_to_cudnn_dtype<To>::value;
   CUDNNCHECK(cudnnCreateTensorDescriptor(&bias_descriptor));
   CUDNNCHECK(cudnnSetTensor4dDescriptor(bias_descriptor,
@@ -227,12 +226,10 @@ template class CudnnConvBias<__half, __half, __half>;
 //===----------------------------------------------------------------------===//
 
 template <typename T>
-void CudnnActivate(cudnnHandle_t handle, T *input,
-                   const std::vector<int64_t> &shape, EpilogueEnum epilogue) {
+CudnnActivation<T>::CudnnActivation(const std::vector<int64_t> &shape,
+                                    EpilogueEnum epilogue, cudnnHandle_t handle)
+    : handle(handle) {
   assert(shape.size() == 4);
-  float alpha = 1.f, beta = 0.f;
-  cudnnTensorDescriptor_t input_descriptor;
-  cudnnActivationDescriptor_t act_descriptor;
   CUDNNCHECK(cudnnCreateTensorDescriptor(&input_descriptor));
   CUDNNCHECK(
       cudnnSetTensor4dDescriptor(input_descriptor,
@@ -265,14 +262,19 @@ void CudnnActivate(cudnnHandle_t handle, T *input,
   } else {
     assert(false);
   }
+}
+
+template <typename T> void CudnnActivation<T>::Run() {
+  float alpha = 1.f, beta = 0.f;
   CUDNNCHECK(cudnnActivationForward(handle, act_descriptor, &alpha,
                                     input_descriptor, input, &beta,
                                     input_descriptor, input));
+}
+
+template <typename T> CudnnActivation<T>::~CudnnActivation() {
   CUDNNCHECK(cudnnDestroyTensorDescriptor(input_descriptor));
   CUDNNCHECK(cudnnDestroyActivationDescriptor(act_descriptor));
 }
 
-template void CudnnActivate<float>(cudnnHandle_t, float *,
-                                   const std::vector<int64_t> &, EpilogueEnum);
-template void CudnnActivate<__half>(cudnnHandle_t, __half *,
-                                    const std::vector<int64_t> &, EpilogueEnum);
+template class CudnnActivation<float>;
+template class CudnnActivation<__half>;

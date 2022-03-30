@@ -45,8 +45,8 @@ float benchmark(Op *op, cudaStream_t stream, Args... args) {
   return elapsedTime / run;
 }
 
-template <typename Op0, typename Op1>
-float benchmark2(Op0 *op0, Op1 *op1, cudaStream_t stream) {
+template <typename Op0, typename Op1, typename... Args>
+float benchmark2(Op0 *op0, Op1 *op1, cudaStream_t stream, Args... args) {
   cudaEvent_t start, stop;
   CUDACHECK(cudaEventCreate(&start));
   CUDACHECK(cudaEventCreate(&stop));
@@ -54,7 +54,7 @@ float benchmark2(Op0 *op0, Op1 *op1, cudaStream_t stream) {
 
   CUDACHECK(cudaEventRecord(start, stream));
   for (int i = 0; i < warm_up; i++) { // warm up
-    op0->Run();
+    op0->Run(args...);
     op1->Run();
   }
   CUDACHECK(cudaEventRecord(stop, stream));
@@ -66,7 +66,7 @@ float benchmark2(Op0 *op0, Op1 *op1, cudaStream_t stream) {
   // printf("run: %d\n", run);
   CUDACHECK(cudaEventRecord(start, stream));
   for (int i = 0; i < run; i++) {
-    op0->Run();
+    op0->Run(args...);
     op1->Run();
   }
   CUDACHECK(cudaEventRecord(stop, stream));

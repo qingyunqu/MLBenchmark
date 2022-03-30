@@ -589,18 +589,25 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
   cudnnHandle_t handle;
   CUDNNCHECK(cudnnCreate(&handle));
   CUDNNCHECK(cudnnSetStream(handle, stream));
-  auto *op = new CudnnConv<TA, TC, CompOn>(
+  auto *op = new CudnnConvBias<TA, TC, CompOn>(
       "NHWC", N, iC, iH, iW, oC, kH, kW, oH, oW, strideH, strideW, paddingH,
-      paddingW, dilationH, dilationW, handle);
+      paddingW, dilationH, dilationW, handle, EpilogueEnum::None);
   op->Initialize();
-  op->Run(input, filter, ref_output);
-  BiasAdd(bias, ref_output, N * oH * oW, oC, stream);
-  if (epilogue == EpilogueEnum::Relu) {
-    Relu(ref_output, N * oH * oW * oC, stream);
-  } else if (epilogue == EpilogueEnum::Sigmoid) {
-    Sigmoid(ref_output, N * oH * oW * oC, stream);
-  }
+  op->Run(input, filter, bias, ref_output);
+  // BiasAdd(bias, ref_output, N * oH * oW, oC, stream);
+  // if (epilogue == EpilogueEnum::Relu) {
+  //   Relu(ref_output, N * oH * oW * oC, stream);
+  // } else if (epilogue == EpilogueEnum::Sigmoid) {
+  //   Sigmoid(ref_output, N * oH * oW * oC, stream);
+  // }
+  auto *act = new CudnnActivation<TC>({N, oH, oW, oC}, epilogue, handle);
+  act->SetArgument(ref_output);
   CUDACHECK(cudaDeviceSynchronize());
+  float cudnn_time =
+      benchmark2(op, act, stream, input, filter, bias, ref_output);
+#if DEBUG
+  std::cerr << "Cudnn Time: " << cudnn_time << "\n";
+#endif
 
   typename Operation::OperationTrait trait{
       OperationEnum::Conv2dBias,
@@ -645,6 +652,7 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
   CUDACHECK(cudaFree(output));
   CUDACHECK(cudaFree(ref_output));
   delete op;
+  delete act;
   CUDNNCHECK(cudnnDestroy(handle));
 
   if (results.size() == 0)
@@ -656,10 +664,10 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
             << "x" << oC << ", "
             << "stride: " << strideH << "x" << strideW
             << ", padding: " << paddingH << "x" << paddingW << ":\n";
-  std::cout << "KernelName, Passed, CutlassTime\n";
+  std::cout << "KernelName, Passed, CutlassTime, CudnnTime\n";
   std::cout << results[0].kernel_name << ", "
             << (results[0].passed ? "Passed" : "Failed") << ", "
-            << results[0].cutlass_time << "\n\n\n";
+            << results[0].cutlass_time << ", " << cudnn_time << "\n\n\n";
 }
 
 template void profile_conv2d_bias<__half, __half, __half, float>(
