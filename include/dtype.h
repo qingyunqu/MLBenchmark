@@ -37,6 +37,10 @@ enum class EpilogueEnum : uint32_t {
   Relu = 1,
   Grelu = 2,
   Sigmoid = 3,
+  Tanh = 4,
+  Elu = 5,
+  LeakyRelu = 6,
+  HardSwish = 7,
 };
 
 inline const char *layout_enum_to_str(LayoutEnum a) {
@@ -74,6 +78,12 @@ inline const char *epilogue_enum_to_str(EpilogueEnum a) {
     return "Grelu";
   } else if (a == EpilogueEnum::Sigmoid) {
     return "Sigmoid";
+  } else if (a == EpilogueEnum::Tanh) {
+    return "Tanh";
+  } else if (a == EpilogueEnum::LeakyRelu) {
+    return "LeakyRelu";
+  } else if (a == EpilogueEnum::HardSwish) {
+    return "HardSwish";
   }
   assert(false && "Unknown Epilogue");
 }

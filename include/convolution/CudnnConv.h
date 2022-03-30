@@ -2,6 +2,7 @@
 
 #include <cudnn.h>
 #include <string>
+#include <vector>
 
 #include "dtype.h"
 #include "ops.h"
@@ -48,3 +49,7 @@ private:
   cudnnActivationDescriptor_t act_descriptor;
   EpilogueEnum epilogue;
 };
+
+template <typename T>
+void CudnnActivate(cudnnHandle_t handle, T *input,
+                   const std::vector<int64_t> &shape, EpilogueEnum epilogue);

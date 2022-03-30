@@ -210,6 +210,7 @@ CudnnConv<T, To, CompOn>::~CudnnConv() {
 template <typename T, typename To, typename CompOn>
 CudnnConvBias<T, To, CompOn>::~CudnnConvBias() {
   CUDNNCHECK(cudnnDestroyTensorDescriptor(bias_descriptor));
+  CUDNNCHECK(cudnnDestroyActivationDescriptor(act_descriptor));
 }
 
 // instantiate
@@ -220,3 +221,58 @@ template class CudnnConv<__half, __half, __half>;
 template class CudnnConvBias<float, float, float>;
 template class CudnnConvBias<__half, __half, float>;
 template class CudnnConvBias<__half, __half, __half>;
+
+//===----------------------------------------------------------------------===//
+// Activation
+//===----------------------------------------------------------------------===//
+
+template <typename T>
+void CudnnActivate(cudnnHandle_t handle, T *input,
+                   const std::vector<int64_t> &shape, EpilogueEnum epilogue) {
+  assert(shape.size() == 4);
+  float alpha = 1.f, beta = 0.f;
+  cudnnTensorDescriptor_t input_descriptor;
+  cudnnActivationDescriptor_t act_descriptor;
+  CUDNNCHECK(cudnnCreateTensorDescriptor(&input_descriptor));
+  CUDNNCHECK(
+      cudnnSetTensor4dDescriptor(input_descriptor,
+                                 /*format=*/CUDNN_TENSOR_NHWC,
+                                 /*dataType=*/ctype_to_cudnn_dtype<T>::value,
+                                 /*batch_size=*/shape[0],
+                                 /*channels=*/shape[3],
+                                 /*image_height=*/shape[1],
+                                 /*image_width=*/shape[2]));
+  CUDNNCHECK(cudnnCreateActivationDescriptor(&act_descriptor));
+  if (epilogue == EpilogueEnum::None) {
+    CUDNNCHECK(cudnnSetActivationDescriptor(
+        act_descriptor, CUDNN_ACTIVATION_IDENTITY, CUDNN_NOT_PROPAGATE_NAN, 0));
+  } else if (epilogue == EpilogueEnum::Relu) {
+    CUDNNCHECK(cudnnSetActivationDescriptor(
+        act_descriptor, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0));
+  } else if (epilogue == EpilogueEnum::Tanh) {
+    CUDNNCHECK(cudnnSetActivationDescriptor(
+        act_descriptor, CUDNN_ACTIVATION_TANH, CUDNN_NOT_PROPAGATE_NAN, 0));
+  } else if (epilogue == EpilogueEnum::Elu) {
+    CUDNNCHECK(cudnnSetActivationDescriptor(
+        act_descriptor, CUDNN_ACTIVATION_ELU, CUDNN_NOT_PROPAGATE_NAN, 0));
+  } else if (epilogue == EpilogueEnum::HardSwish) {
+    // CUDNNCHECK(cudnnSetActivationDescriptor(
+    // act_descriptor, CUDNN_ACTIVATION_SWISH, CUDNN_NOT_PROPAGATE_NAN, 0));
+    assert(false);
+  } else if (epilogue == EpilogueEnum::Sigmoid) {
+    CUDNNCHECK(cudnnSetActivationDescriptor(
+        act_descriptor, CUDNN_ACTIVATION_SIGMOID, CUDNN_NOT_PROPAGATE_NAN, 0));
+  } else {
+    assert(false);
+  }
+  CUDNNCHECK(cudnnActivationForward(handle, act_descriptor, &alpha,
+                                    input_descriptor, input, &beta,
+                                    input_descriptor, input));
+  CUDNNCHECK(cudnnDestroyTensorDescriptor(input_descriptor));
+  CUDNNCHECK(cudnnDestroyActivationDescriptor(act_descriptor));
+}
+
+template void CudnnActivate<float>(cudnnHandle_t, float *,
+                                   const std::vector<int64_t> &, EpilogueEnum);
+template void CudnnActivate<__half>(cudnnHandle_t, __half *,
+                                    const std::vector<int64_t> &, EpilogueEnum);
