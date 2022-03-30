@@ -23,7 +23,7 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
   CUBLASCHECK(cublasCreate(&handle));
   CUBLASCHECK(cublasSetStream(handle, stream));
 
-  Matmul<T, To> *op = new CublasMatmul<T, To, CompOn>(
+  auto *op = new CublasMatmul<T, To, CompOn>(
       m, n, k, lhs_transpose, rhs_transpose, output_transpose, handle);
 
   if (test) {

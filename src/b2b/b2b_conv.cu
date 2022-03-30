@@ -57,7 +57,7 @@ using Conv2dFpropKernel1 = typename cutlass::conv::kernel::DefaultConv2dFprop<
     ThreadblockShape1,
     WarpShape1,
     InstructionShape,
-    cutlass::epilogue::thread::LinearCombination<
+    cutlass::epilogue::thread::LinearCombinationRelu<
       ElementC,
       128 / cutlass::sizeof_bits<ElementC>::value,
       ElementAccumulator,
@@ -78,11 +78,11 @@ using EpilogueOutputOp0 =
     InstructionShape::kM * InstructionShape::kN / 32,
     ElementAccumulator,
     ElementCompute,
-    cutlass::epilogue::thread::ScaleType::Nothing
+    cutlass::epilogue::thread::ScaleType::Nothing // cutlass::epilogue::thread::ScaleType::OnlyAlphaPerChannelScaling
   >;
 
 using EpilogueOutputOp1 = 
-  cutlass::epilogue::thread::LinearCombination<
+  cutlass::epilogue::thread::LinearCombinationRelu<
     ElementC,
     128 / cutlass::sizeof_bits<ElementC>::value,
     ElementAccumulator,

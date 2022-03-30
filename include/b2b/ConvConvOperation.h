@@ -79,6 +79,8 @@ public:
     LayoutC layoutD1(oC1, oC1 * oW1, oC1 * oW1 * oH1);
     printf("ElementScaleBias: %s\n",
            dtype_enum_to_str(cutlass_type_to_dtype_v<ElementScaleBias>));
+    printf("LayoutScaleBias: %s\n",
+           layout_enum_to_str(cutlass_layout_to_layout_v<LayoutScaleBias>));
     arguments = {problem_size_0,
                  problem_size_1,
                  {(ElementA *)input0, layoutA0},

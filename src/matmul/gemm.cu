@@ -5,6 +5,22 @@
 #include <cuda_fp16.h>
 #include <string>
 
+using Operation_cutlass_tensorop_f16_s16816gemm_f16_256x128_32x3_nn_align8 =
+    cutlass::gemm::device::Gemm<
+        cutlass::half_t, cutlass::layout::ColumnMajor, cutlass::half_t,
+        cutlass::layout::ColumnMajor, cutlass::half_t,
+        cutlass::layout::ColumnMajor, float, cutlass::arch::OpClassTensorOp,
+        cutlass::arch::Sm80, cutlass::gemm::GemmShape<256, 128, 32>,
+        cutlass::gemm::GemmShape<64, 64, 32>,
+        cutlass::gemm::GemmShape<16, 8, 16>,
+        cutlass::epilogue::thread::LinearCombination<
+            cutlass::half_t, 8, float, float,
+            cutlass::epilogue::thread::ScaleType::Default>,
+        cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<8>, 3, 8, 8,
+        false, cutlass::arch::OpMultiplyAdd
+
+        >;
+
 namespace cutlass {
 namespace library {
 void initialize_all_gemm_operations(Manifest &manifest);
@@ -41,7 +57,9 @@ int main(int argc, char *argv[]) {
   }
 
   Manifest manifest;
-  cutlass::library::initialize_all_gemm_operations(manifest);
+  cutlass::library::
+      initialize_cutlass_tensorop_f16_s1688gemm_f16_256x128_32x2_nn_align8(
+          manifest);
 
   if (output_type == "fp32" && accmu_type == "fp32") {
     profile_gemm<__half, __half, float, float>(manifest, m, n, k, layout_a,

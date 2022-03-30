@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cuda_runtime.h>
+// #include <unistd.h>
 
 #include "check.h"
 #include "ops.h"
@@ -11,6 +12,8 @@ constexpr float run_time = 600; // ms
 
 template <typename Op, typename... Args>
 float benchmark(Op *op, cudaStream_t stream, Args... args) {
+  // usleep(50 * 1000);
+
   cudaEvent_t start, stop;
   CUDACHECK(cudaEventCreate(&start));
   CUDACHECK(cudaEventCreate(&stop));

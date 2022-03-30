@@ -8,6 +8,8 @@
 namespace cutlass {
 namespace library {
 void initialize_all_gemm_operations(Manifest &manifest);
+void initialize_cutlass_tensorop_f16_s1688gemm_bias_f16_256x128_32x2_nn_align8(
+    Manifest &manifest);
 } // namespace library
 } // namespace cutlass
 

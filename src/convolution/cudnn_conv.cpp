@@ -30,9 +30,9 @@ void Run(const std::string &layout, int64_t N, int64_t iH, int64_t iW,
   CUDNNCHECK(cudnnCreate(&handle));
   CUDNNCHECK(cudnnSetStream(handle, stream));
 
-  Conv<T, To> *op = new CudnnConv<T, To, CompOn>(
-      layout, N, iC, iH, iW, oC, kH, kW, oH, oW, strideH, strideW, paddingH,
-      paddingW, dilateH, dilateW, handle);
+  auto *op = new CudnnConv<T, To, CompOn>(layout, N, iC, iH, iW, oC, kH, kW, oH,
+                                          oW, strideH, strideW, paddingH,
+                                          paddingW, dilateH, dilateW, handle);
 
   if (test) {
     // test
@@ -41,9 +41,7 @@ void Run(const std::string &layout, int64_t N, int64_t iH, int64_t iW,
     bool passed = CheckConv<T, To, CompOn>(
         a, b, c, layout, N, iC, iH, iW, oC, kH, kW, oH, oW, strideH, strideW,
         paddingH, paddingW, dilateH, dilateW, eps);
-    if (passed) {
-      printf("Test Passed.\n");
-    }
+    std::cout << "Test " << (passed ? "Passed" : "Failed") << ".\n";
   } else {
     // benchmark
     float time = benchmark<Op<T, To>>(op, stream, a, b, c);
@@ -66,12 +64,17 @@ int main(int argc, char *argv[]) {
   // bool test = std::string(argv[1]) == "0" ? true : false;
   bool test = false;
 
-  for (int64_t b : {1, 8, 16, 32, 64, 128}) {
-    Run<__half>(/*layout=*/"NHWC", /*N*/ b, /*iH*/ 7, /*iW*/ 7, /*iC*/ 512,
-                /*oC*/ 512, /*kH*/ 3, /*kW*/ 3,
-                /*strideH*/ 1, /*strideW*/ 1, /*paddingH*/ 1, /*paddingW*/ 1,
-                1e-3f, test);
-  }
+  // for (int64_t b : {1, 8, 16, 32, 64, 128}) {
+  Run<__half>(/*layout=*/"NHWC", /*N*/ 128, /*iH*/ 56, /*iW*/ 56, /*iC*/ 64,
+              /*oC*/ 64, /*kH*/ 3, /*kW*/ 3,
+              /*strideH*/ 1, /*strideW*/ 1, /*paddingH*/ 1, /*paddingW*/ 1,
+              1e-3f, test);
+  //}
+
+  Run<__half>(/*layout=*/"NHWC", /*N*/ 128, /*iH*/ 224, /*iW*/ 224, /*iC*/ 3,
+              /*oC*/ 64, /*kH*/ 7, /*kW*/ 7,
+              /*strideH*/ 2, /*strideW*/ 2, /*paddingH*/ 3, /*paddingW*/ 3,
+              1e-3f, test);
 
   return 0;
 }

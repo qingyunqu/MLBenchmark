@@ -23,6 +23,7 @@ const char *cudnn_math_type_to_str(cudnnMathType_t mathType) {
   default:
     return "";
   }
+  return "";
 }
 
 const char *cudnn_algo_to_str(cudnnConvolutionFwdAlgo_t algo) {
@@ -46,7 +47,12 @@ const char *cudnn_algo_to_str(cudnnConvolutionFwdAlgo_t algo) {
   default:
     return "";
   }
+  return "";
 }
+
+//===----------------------------------------------------------------------===//
+// Constructor
+//===----------------------------------------------------------------------===//
 
 template <typename T, typename To, typename CompOn>
 CudnnConv<T, To, CompOn>::CudnnConv(const std::string &layout, int64_t N,
@@ -56,11 +62,8 @@ CudnnConv<T, To, CompOn>::CudnnConv(const std::string &layout, int64_t N,
                                     int64_t strideW, int64_t paddingH,
                                     int64_t paddingW, int64_t dilateH,
                                     int64_t dilateW, cudnnHandle_t handle)
-    : Conv<T, To>(layout, N, iC, iH, iW, oC, kH, kW, oH, oW, strideH, strideW,
-                  paddingH, paddingW, dilateH, dilateW),
-      handle(handle) {
+    : handle(handle) {
   assert(layout == "NCHW" || layout == "NHWC");
-  cudnnTensorFormat_t format;
   if (layout == "NCHW") {
     format = CUDNN_TENSOR_NCHW;
   } else if (layout == "NHWC") {
@@ -95,8 +98,6 @@ CudnnConv<T, To, CompOn>::CudnnConv(const std::string &layout, int64_t N,
                                         /*kernel_height=*/kH,
                                         /*kernel_width=*/kW));
   CUDNNCHECK(cudnnCreateConvolutionDescriptor(&convolution_descriptor));
-  CUDNNCHECK(cudnnSetConvolutionMathType(convolution_descriptor,
-                                         CUDNN_TENSOR_OP_MATH));
   CUDNNCHECK(cudnnSetConvolution2dDescriptor(convolution_descriptor,
                                              /*pad_h=*/paddingH,
                                              /*pad_w=*/paddingW,
@@ -106,7 +107,40 @@ CudnnConv<T, To, CompOn>::CudnnConv(const std::string &layout, int64_t N,
                                              /*dilation_w=*/dilateW,
                                              /*mode=*/CUDNN_CROSS_CORRELATION,
                                              /*computeType=*/compute_dtype));
+  CUDNNCHECK(cudnnSetConvolutionMathType(convolution_descriptor,
+                                         CUDNN_TENSOR_OP_MATH));
+}
 
+template <typename T, typename To, typename CompOn>
+CudnnConvBias<T, To, CompOn>::CudnnConvBias(
+    const std::string &layout, int64_t N, int64_t iC, int64_t iH, int64_t iW,
+    int64_t oC, int64_t kH, int64_t kW, int64_t oH, int64_t oW, int64_t strideH,
+    int64_t strideW, int64_t paddingH, int64_t paddingW, int64_t dilateH,
+    int64_t dilateW, cudnnHandle_t handle, EpilogueEnum epilogue)
+    : CudnnConv<T, To, CompOn>(layout, N, iC, iH, iW, oC, kH, kW, oH, oW,
+                               strideH, strideW, paddingH, paddingW, dilateH,
+                               dilateW, handle),
+      epilogue(epilogue) {
+  auto output_dtype = ctype_to_cudnn_dtype<To>::value;
+  CUDNNCHECK(cudnnCreateTensorDescriptor(&bias_descriptor));
+  CUDNNCHECK(cudnnSetTensor4dDescriptor(bias_descriptor,
+                                        /*format=*/this->format,
+                                        /*dataType=*/output_dtype,
+                                        /*batch_size=*/1,
+                                        /*channels=*/oC,
+                                        /*image_height=*/1,
+                                        /*image_width=*/1));
+  CUDNNCHECK(cudnnCreateActivationDescriptor(&act_descriptor));
+  CUDNNCHECK(cudnnSetActivationDescriptor(
+      act_descriptor, CUDNN_ACTIVATION_IDENTITY, CUDNN_NOT_PROPAGATE_NAN, 0));
+}
+
+//===----------------------------------------------------------------------===//
+// Initialize
+//===----------------------------------------------------------------------===//
+
+template <typename T, typename To, typename CompOn>
+void CudnnConv<T, To, CompOn>::Initialize() {
   int returnedAlgoCount;
   // cudnnConvolutionFwdAlgoPerf_t results[10];
   CUDNNCHECK(cudnnFindConvolutionForwardAlgorithm(
@@ -114,6 +148,7 @@ CudnnConv<T, To, CompOn>::CudnnConv(const std::string &layout, int64_t N,
       output_descriptor,
       /*requestedAlgoCount=*/1, &returnedAlgoCount, &perf));
   assert(returnedAlgoCount == 1);
+  printf("Cudnn Algo MathType: %s\n", cudnn_math_type_to_str(perf.mathType));
   // printf("returnedAlgoCount: %d\n", returnedAlgoCount);
   // for (int i = 0; i < returnedAlgoCount; i++) {
   //   printf("algo: %s\n", cudnn_algo_to_str(results[i].algo));
@@ -125,15 +160,35 @@ CudnnConv<T, To, CompOn>::CudnnConv(const std::string &layout, int64_t N,
   CUDACHECK(cudaMalloc(&workspace, perf.memory));
 }
 
+//===----------------------------------------------------------------------===//
+// Run
+//===----------------------------------------------------------------------===//
+
 template <typename T, typename To, typename CompOn>
-void CudnnConv<T, To, CompOn>::Run(const T *input, const T *filter,
-                                   To *output) {
+void CudnnConv<T, To, CompOn>::Run(T *input, T *filter, To *output) {
   float alpha = 1.f, beta = 0.f;
   CUDNNCHECK(cudnnConvolutionForward(
       handle, &alpha, input_descriptor, input, filter_descriptor, filter,
       convolution_descriptor, perf.algo, workspace, perf.memory, &beta,
       output_descriptor, output));
 }
+
+template <typename T, typename To, typename CompOn>
+void CudnnConvBias<T, To, CompOn>::Run(T *input, T *filter, To *bias,
+                                       To *output) {
+  float alpha1 = 1.f,
+        alpha2 = 0.f; // y = act ( alpha1 * conv(x) + alpha2 * z + bias )
+  CUDNNCHECK(cudnnConvolutionBiasActivationForward(
+      this->handle, &alpha1, this->input_descriptor, input,
+      this->filter_descriptor, filter, this->convolution_descriptor,
+      this->perf.algo, this->workspace, this->perf.memory, &alpha2,
+      /*zDesc*/ this->output_descriptor, /*z*/ nullptr, bias_descriptor, bias,
+      /*actDesc*/ act_descriptor, this->output_descriptor, output));
+}
+
+//===----------------------------------------------------------------------===//
+// ~
+//===----------------------------------------------------------------------===//
 
 template <typename T, typename To, typename CompOn>
 CudnnConv<T, To, CompOn>::~CudnnConv() {
@@ -144,7 +199,16 @@ CudnnConv<T, To, CompOn>::~CudnnConv() {
   CUDNNCHECK(cudnnDestroyConvolutionDescriptor(convolution_descriptor));
 }
 
+template <typename T, typename To, typename CompOn>
+CudnnConvBias<T, To, CompOn>::~CudnnConvBias() {
+  CUDNNCHECK(cudnnDestroyTensorDescriptor(bias_descriptor));
+}
+
 // instantiate
 template class CudnnConv<float, float, float>;
 template class CudnnConv<__half, __half, float>;
 template class CudnnConv<__half, __half, __half>;
+
+template class CudnnConvBias<float, float, float>;
+template class CudnnConvBias<__half, __half, float>;
+template class CudnnConvBias<__half, __half, __half>;
