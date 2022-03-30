@@ -9,3 +9,5 @@ template <typename T> void Relu(T *result, int64_t size, cudaStream_t stream);
 
 template <typename T>
 void Sigmoid(T *result, int64_t size, cudaStream_t stream);
+
+template <typename T> void Tanh(T *result, int64_t size, cudaStream_t stream);

@@ -6,10 +6,9 @@
 
 template <typename T>
 __global__ void bias_add(T *bias, T *result, int64_t m, int64_t n) {
-  int row = blockIdx.x * blockDim.x + threadIdx.x;
-  int column = blockIdx.y * blockDim.y + threadIdx.y;
-  if (row < n && column < m) {
-    result[column * n + row] += bias[row];
+  int id = blockIdx.x * blockDim.x + threadIdx.x;
+  if (id < n * m) {
+    result[id] += bias[id % n];
   }
 }
 
@@ -38,10 +37,19 @@ template <typename T> __global__ void sigmoid(T *result, int64_t size) {
   }
 }
 
+template <typename T> __global__ void tanh(T *result, int64_t size) {
+  int id = blockIdx.x * blockDim.x + threadIdx.x;
+  if (id < size) {
+    result[id] = static_cast<T>(::tanh(static_cast<float>(result[id])));
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 template <typename T>
 void BiasAdd(T *bias, T *result, int64_t m, int64_t n, cudaStream_t stream) {
-  dim3 block(16, 16);
-  dim3 grid((n + block.x - 1) / block.x, (m + block.y - 1) / block.y);
+  dim3 block(256);
+  dim3 grid((m * n + block.x - 1) / block.x);
   bias_add<T><<<grid, block, 0, stream>>>(bias, result, m, n);
   after_kernel_launch();
 }
@@ -57,6 +65,11 @@ void Sigmoid(T *result, int64_t size, cudaStream_t stream) {
   after_kernel_launch();
 }
 
+template <typename T> void Tanh(T *result, int64_t size, cudaStream_t stream) {
+  tanh<T><<<(size + 256 - 1) / 256, 256, 0, stream>>>(result, size);
+  after_kernel_launch();
+}
+
 template void BiasAdd<float>(float *, float *, int64_t, int64_t, cudaStream_t);
 template void BiasAdd<__half>(__half *, __half *, int64_t, int64_t,
                               cudaStream_t);
@@ -64,3 +77,5 @@ template void Relu<float>(float *, int64_t, cudaStream_t);
 template void Relu<__half>(__half *, int64_t, cudaStream_t);
 template void Sigmoid<float>(float *, int64_t, cudaStream_t);
 template void Sigmoid<__half>(__half *, int64_t, cudaStream_t);
+template void Tanh<float>(float *, int64_t, cudaStream_t);
+template void Tanh<__half>(__half *, int64_t, cudaStream_t);

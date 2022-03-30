@@ -131,8 +131,15 @@ CudnnConvBias<T, To, CompOn>::CudnnConvBias(
                                         /*image_height=*/1,
                                         /*image_width=*/1));
   CUDNNCHECK(cudnnCreateActivationDescriptor(&act_descriptor));
-  CUDNNCHECK(cudnnSetActivationDescriptor(
-      act_descriptor, CUDNN_ACTIVATION_IDENTITY, CUDNN_NOT_PROPAGATE_NAN, 0));
+  if (epilogue == EpilogueEnum::None) {
+    CUDNNCHECK(cudnnSetActivationDescriptor(
+        act_descriptor, CUDNN_ACTIVATION_IDENTITY, CUDNN_NOT_PROPAGATE_NAN, 0));
+  } else if (epilogue == EpilogueEnum::Relu) {
+    CUDNNCHECK(cudnnSetActivationDescriptor(
+        act_descriptor, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0));
+  } else {
+    assert(false && "not support");
+  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -182,7 +189,8 @@ void CudnnConvBias<T, To, CompOn>::Run(T *input, T *filter, To *bias,
       this->handle, &alpha1, this->input_descriptor, input,
       this->filter_descriptor, filter, this->convolution_descriptor,
       this->perf.algo, this->workspace, this->perf.memory, &alpha2,
-      /*zDesc*/ this->output_descriptor, /*z*/ nullptr, bias_descriptor, bias,
+      /*zDesc*/ this->output_descriptor, /*z*/ this->output_descriptor,
+      bias_descriptor, bias,
       /*actDesc*/ act_descriptor, this->output_descriptor, output));
 }
 
