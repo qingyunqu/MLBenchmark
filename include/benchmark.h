@@ -2,17 +2,18 @@
 
 #include <cmath>
 #include <cuda_runtime.h>
-// #include <unistd.h>
+#include <unistd.h>
 
 #include "check.h"
 #include "ops.h"
 
 constexpr int warm_up = 5;
+constexpr int run = 100;
 constexpr float run_time = 600; // ms
 
 template <typename Op, typename... Args>
 float benchmark(Op *op, cudaStream_t stream, Args... args) {
-  // usleep(50 * 1000);
+  usleep(50 * 1000);
 
   cudaEvent_t start, stop;
   CUDACHECK(cudaEventCreate(&start));
@@ -28,8 +29,7 @@ float benchmark(Op *op, cudaStream_t stream, Args... args) {
   elapsedTime = 0.f;
   CUDACHECK(cudaEventElapsedTime(&elapsedTime, start, stop));
 
-  int run = std::ceil(run_time / (elapsedTime / warm_up));
-  // printf("run: %d\n", run);
+  // int run = std::ceil(run_time / (elapsedTime / warm_up));
   CUDACHECK(cudaEventRecord(start, stream));
   for (int i = 0; i < run; i++) {
     op->Run(args...);
@@ -47,6 +47,8 @@ float benchmark(Op *op, cudaStream_t stream, Args... args) {
 
 template <typename Op0, typename Op1, typename... Args>
 float benchmark2(Op0 *op0, Op1 *op1, cudaStream_t stream, Args... args) {
+  usleep(50 * 1000);
+
   cudaEvent_t start, stop;
   CUDACHECK(cudaEventCreate(&start));
   CUDACHECK(cudaEventCreate(&stop));
@@ -62,8 +64,7 @@ float benchmark2(Op0 *op0, Op1 *op1, cudaStream_t stream, Args... args) {
   elapsedTime = 0.f;
   CUDACHECK(cudaEventElapsedTime(&elapsedTime, start, stop));
 
-  int run = std::ceil(run_time / (elapsedTime / warm_up));
-  // printf("run: %d\n", run);
+  // int run = std::ceil(run_time / (elapsedTime / warm_up));
   CUDACHECK(cudaEventRecord(start, stream));
   for (int i = 0; i < run; i++) {
     op0->Run(args...);
@@ -82,6 +83,8 @@ float benchmark2(Op0 *op0, Op1 *op1, cudaStream_t stream, Args... args) {
 
 template <typename Gemm>
 float benchmark_cutlass(Gemm* op, cudaStream_t stream) {
+  usleep(50 * 1000);
+
   cudaEvent_t start, stop;
   CUDACHECK(cudaEventCreate(&start));
   CUDACHECK(cudaEventCreate(&stop));
@@ -96,7 +99,7 @@ float benchmark_cutlass(Gemm* op, cudaStream_t stream) {
   elapsedTime = 0.f;
   CUDACHECK(cudaEventElapsedTime(&elapsedTime, start, stop));
 
-  int run = std::ceil(run_time / (elapsedTime / warm_up));
+  // int run = std::ceil(run_time / (elapsedTime / warm_up));
   CUDACHECK(cudaEventRecord(start, stream));
   for (int i = 0; i < run; i++) {
     (*op)();

@@ -64,8 +64,8 @@ Operation *get_kernel_by_name(Manifest &manifest, const std::string &name) {
 
 template <typename TA, typename TB, typename TC, typename CompOn>
 void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
-                  LayoutEnum layout_a, LayoutEnum layout_b,
-                  LayoutEnum layout_c) {
+                  LayoutEnum layout_a, LayoutEnum layout_b, LayoutEnum layout_c,
+                  const std::string &kernel_name /* = ""*/) {
   using ElementInputA = typename ctype_to_cutlass_type<TA>::type;
   using ElementInputB = typename ctype_to_cutlass_type<TB>::type;
   using ElementOutput = typename ctype_to_cutlass_type<TC>::type;
@@ -123,6 +123,9 @@ void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
   }
   std::vector<Result> results;
   for (auto &kernel : manifest.kernels) {
+    if (kernel_name != "" && kernel_name != kernel->Name()) {
+      continue;
+    }
     if (*(kernel->Trait()) != trait) {
       continue;
     }
@@ -172,11 +175,16 @@ void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
 template void profile_gemm<__half, __half, float, float>(Manifest &, int64_t,
                                                          int64_t, int64_t,
                                                          LayoutEnum, LayoutEnum,
-                                                         LayoutEnum);
-template void profile_gemm<__half, __half, __half, float>(
-    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
-template void profile_gemm<__half, __half, __half, __half>(
-    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum);
+                                                         LayoutEnum,
+                                                         const std::string &);
+template void
+profile_gemm<__half, __half, __half, float>(Manifest &, int64_t, int64_t,
+                                            int64_t, LayoutEnum, LayoutEnum,
+                                            LayoutEnum, const std::string &);
+template void
+profile_gemm<__half, __half, __half, __half>(Manifest &, int64_t, int64_t,
+                                             int64_t, LayoutEnum, LayoutEnum,
+                                             LayoutEnum, const std::string &);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // GemmBias
@@ -186,7 +194,8 @@ template <typename TA, typename TB, typename TC, typename CompOn>
 void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
                        LayoutEnum layout_a, LayoutEnum layout_b,
                        LayoutEnum layout_c,
-                       EpilogueEnum epilogue /* = EpilogueEnum::None */) {
+                       EpilogueEnum epilogue /* = EpilogueEnum::None */,
+                       const std::string &kernel_name /* = ""*/) {
   using ElementInputA = typename ctype_to_cutlass_type<TA>::type;
   using ElementInputB = typename ctype_to_cutlass_type<TB>::type;
   using ElementOutput = typename ctype_to_cutlass_type<TC>::type;
@@ -239,6 +248,9 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
       cutlass_type_to_dtype_v<ElementAccumulator>};
   std::vector<Result> results;
   for (auto &kernel : manifest.kernels) {
+    if (kernel_name != "" && kernel_name != kernel->Name()) {
+      continue;
+    }
     if (*(kernel->Trait()) != trait) {
       continue;
     }
@@ -280,16 +292,15 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
             << results[0].cutlass_time << "\n\n\n";
 }
 
-template void
-profile_gemm_bias<__half, __half, float, float>(Manifest &, int64_t, int64_t,
-                                                int64_t, LayoutEnum, LayoutEnum,
-                                                LayoutEnum, EpilogueEnum);
+template void profile_gemm_bias<__half, __half, float, float>(
+    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum,
+    EpilogueEnum, const std::string &);
 template void profile_gemm_bias<__half, __half, __half, float>(
     Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum,
-    EpilogueEnum);
+    EpilogueEnum, const std::string &);
 template void profile_gemm_bias<__half, __half, __half, __half>(
     Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum,
-    EpilogueEnum);
+    EpilogueEnum, const std::string &);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // GemmGemm
@@ -454,8 +465,9 @@ template <typename TA, typename TB, typename TC, typename CompOn>
 void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
                     int64_t iC, int64_t oH, int64_t oW, int64_t oC, int64_t kH,
                     int64_t kW, int64_t strideH, int64_t strideW,
-                    int64_t paddingH, int64_t paddingW,
-                    int64_t dilationH /* = 1*/, int64_t dilationW /* = 1*/) {
+                    int64_t paddingH, int64_t paddingW, int64_t dilationH,
+                    int64_t dilationW,
+                    const std::string &kernel_name /* = "" */) {
   // only profile NHWC layout
   using ElementInputA = typename ctype_to_cutlass_type<TA>::type;
   using ElementInputB = typename ctype_to_cutlass_type<TB>::type;
@@ -502,6 +514,9 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
       cutlass_type_to_dtype_v<ElementAccumulator>};
   std::vector<Result> results;
   for (auto kernel : manifest.kernels) {
+    if (kernel_name != "" && kernel_name != kernel->Name()) {
+      continue;
+    }
     if (*(kernel->Trait()) != trait) {
       continue;
     }
@@ -550,10 +565,12 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
 
 template void profile_conv2d<__half, __half, __half, float>(
     Manifest &, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
-    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t);
+    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
+    const std::string &);
 template void profile_conv2d<__half, __half, __half, __half>(
     Manifest &, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
-    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t);
+    int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
+    const std::string &);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // Conv2dBias
@@ -564,8 +581,9 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
                          int64_t iC, int64_t oH, int64_t oW, int64_t oC,
                          int64_t kH, int64_t kW, int64_t strideH,
                          int64_t strideW, int64_t paddingH, int64_t paddingW,
-                         int64_t dilationH /* = 1*/, int64_t dilationW /* = 1*/,
-                         EpilogueEnum epilogue /* = EpilogueEnum::None */) {
+                         int64_t dilationH, int64_t dilationW,
+                         EpilogueEnum epilogue /* = EpilogueEnum::None */,
+                         const std::string &kernel_name /* = "" */) {
   // only profile NHWC layout
   using ElementInputA = typename ctype_to_cutlass_type<TA>::type;
   using ElementInputB = typename ctype_to_cutlass_type<TB>::type;
@@ -618,6 +636,9 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
       cutlass_type_to_dtype_v<ElementAccumulator>};
   std::vector<Result> results;
   for (auto kernel : manifest.kernels) {
+    if (kernel_name != "" && kernel_name != kernel->Name()) {
+      continue;
+    }
     if (*(kernel->Trait()) != trait) {
       continue;
     }
@@ -670,11 +691,11 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
 template void profile_conv2d_bias<__half, __half, __half, float>(
     Manifest &, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
     int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
-    EpilogueEnum);
+    EpilogueEnum, const std::string &);
 template void profile_conv2d_bias<__half, __half, __half, __half>(
     Manifest &, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
     int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
-    EpilogueEnum);
+    EpilogueEnum, const std::string &);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // Conv2dConv2d

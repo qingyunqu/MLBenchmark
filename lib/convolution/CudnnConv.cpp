@@ -227,7 +227,7 @@ template class CudnnConvBias<__half, __half, __half>;
 template <typename T>
 CudnnActivation<T>::CudnnActivation(const std::vector<int64_t> &shape,
                                     EpilogueEnum epilogue, cudnnHandle_t handle)
-    : handle(handle) {
+    : epilogue(epilogue), handle(handle) {
   assert(shape.size() == 4);
   CUDNNCHECK(cudnnCreateTensorDescriptor(&input_descriptor));
   CUDNNCHECK(
@@ -264,6 +264,9 @@ CudnnActivation<T>::CudnnActivation(const std::vector<int64_t> &shape,
 }
 
 template <typename T> void CudnnActivation<T>::Run() {
+  if (epilogue == EpilogueEnum::None) {
+    return;
+  }
   assert(input != nullptr);
   float alpha = 1.f, beta = 0.f;
   CUDNNCHECK(cudnnActivationForward(handle, act_descriptor, &alpha,

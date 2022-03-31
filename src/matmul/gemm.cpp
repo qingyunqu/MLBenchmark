@@ -14,7 +14,7 @@ void initialize_cutlass_tensorop_f16_s1688gemm_f16_256x128_32x2_nn_align8(
 } // namespace cutlass
 
 int main(int argc, char *argv[]) {
-  assert(argc == 9);
+  assert(argc == 9 || argc == 10);
   std::string output_type(argv[1]);
   std::string accmu_type(argv[2]);
   std::string lhs_layout(argv[3]);
@@ -23,6 +23,10 @@ int main(int argc, char *argv[]) {
   int64_t m = atoi(argv[6]);
   int64_t n = atoi(argv[7]);
   int64_t k = atoi(argv[8]);
+  std::string kernel_name = "";
+  if (argc == 10) {
+    kernel_name = argv[9];
+  }
 
   LayoutEnum layout_a = str_to_layout_enum(lhs_layout);
   if (layout_a == LayoutEnum::Invalid) {
@@ -45,13 +49,13 @@ int main(int argc, char *argv[]) {
 
   if (output_type == "fp32" && accmu_type == "fp32") {
     profile_gemm<__half, __half, float, float>(manifest, m, n, k, layout_a,
-                                               layout_b, layout_c);
+                                               layout_b, layout_c, kernel_name);
   } else if (output_type == "fp16" && accmu_type == "fp32") {
-    profile_gemm<__half, __half, __half, float>(manifest, m, n, k, layout_a,
-                                                layout_b, layout_c);
+    profile_gemm<__half, __half, __half, float>(
+        manifest, m, n, k, layout_a, layout_b, layout_c, kernel_name);
   } else if (output_type == "fp16" && accmu_type == "fp16") {
-    profile_gemm<__half, __half, __half, __half>(manifest, m, n, k, layout_a,
-                                                 layout_b, layout_c);
+    profile_gemm<__half, __half, __half, __half>(
+        manifest, m, n, k, layout_a, layout_b, layout_c, kernel_name);
   } else {
     fprintf(stderr, "unsupported output and accmulator type\n");
     return -1;

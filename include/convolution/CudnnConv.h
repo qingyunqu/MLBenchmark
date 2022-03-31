@@ -77,6 +77,7 @@ public:
   virtual ~CudnnActivation();
 
 private:
+  EpilogueEnum epilogue;
   T *input = nullptr;
   cudnnHandle_t(handle);
   cudnnTensorDescriptor_t input_descriptor;
