@@ -91,10 +91,10 @@ void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
       m, n, k, layout_a == LayoutEnum::ColumnMajor,
       layout_b == LayoutEnum::ColumnMajor, layout_c == LayoutEnum::ColumnMajor,
       handle);
-  op->Run(a, b, ref_c);
+  op->SetArgument(a, b, ref_c);
+  op->Run();
   CUDACHECK(cudaDeviceSynchronize());
-
-  float cublas_time = benchmark<Op<TA, TC>>(op, stream, a, b, ref_c);
+  float cublas_time = benchmark(op, stream);
 #if DEBUG
   std::cerr << "Cublas Time: " << cublas_time << "\n";
 #endif
@@ -217,7 +217,8 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
       m, n, k, layout_a == LayoutEnum::ColumnMajor,
       layout_b == LayoutEnum::ColumnMajor, layout_c == LayoutEnum::ColumnMajor,
       handle);
-  op->Run(a, b, ref_d);
+  op->SetArgument(a, b, ref_d);
+  op->Run();
   BiasAdd(bias, ref_d, m, n, stream);
   if (epilogue == EpilogueEnum::Relu) {
     Relu(ref_d, m * n, stream);
@@ -331,16 +332,18 @@ void profile_gemm_gemm(Manifest &manifest, int64_t m0, int64_t n0, int64_t k0,
         m0, n0, k0, layout_a == LayoutEnum::ColumnMajor,
         layout_b == LayoutEnum::ColumnMajor,
         layout_c == LayoutEnum::ColumnMajor, handle);
-    op0->Run(a0, b0, ref_d0);
-    float time0 = benchmark(op0, stream, a0, b0, ref_d0);
+    op0->SetArgument(a0, b0, ref_d0);
+    op0->Run();
+    float time0 = benchmark(op0, stream);
     delete op0;
 
     auto *op1 = new CublasMatmul<TC, TC, CompOn>(
         m1, n1, k1, layout_c == LayoutEnum::ColumnMajor,
         layout_b == LayoutEnum::ColumnMajor,
         layout_c == LayoutEnum::ColumnMajor, handle);
-    op1->Run(ref_d0, b1, ref_d1);
-    float time1 = benchmark(op1, stream, ref_d0, b1, ref_d1);
+    op1->SetArgument(ref_d0, b1, ref_d1);
+    op1->Run();
+    float time1 = benchmark(op1, stream);
     delete op1;
 
     std::cout << "cublas time0: " << time0 << "\n";
@@ -478,12 +481,11 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
   auto *op = new CudnnConv<TA, TC, CompOn>(
       "NHWC", N, iC, iH, iW, oC, kH, kW, oH, oW, strideH, strideW, paddingH,
       paddingW, dilationH, dilationW, handle);
-  op->Initialize();
-  op->Run(input, filter, ref_output);
+  op->AllocWorkspace();
+  op->SetArgument(input, filter, ref_output);
+  op->Run();
   CUDACHECK(cudaDeviceSynchronize());
-
-  float cudnn_time =
-      benchmark<Op<TA, TC>>(op, stream, input, filter, ref_output);
+  float cudnn_time = benchmark(op, stream);
 #if DEBUG
   std::cerr << "Cudnn Time: " << cudnn_time << "\n";
 #endif
@@ -592,19 +594,14 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
   auto *op = new CudnnConvBias<TA, TC, CompOn>(
       "NHWC", N, iC, iH, iW, oC, kH, kW, oH, oW, strideH, strideW, paddingH,
       paddingW, dilationH, dilationW, handle, EpilogueEnum::None);
-  op->Initialize();
-  op->Run(input, filter, bias, ref_output);
-  // BiasAdd(bias, ref_output, N * oH * oW, oC, stream);
-  // if (epilogue == EpilogueEnum::Relu) {
-  //   Relu(ref_output, N * oH * oW * oC, stream);
-  // } else if (epilogue == EpilogueEnum::Sigmoid) {
-  //   Sigmoid(ref_output, N * oH * oW * oC, stream);
-  // }
+  op->AllocWorkspace();
+  op->SetArgument(input, filter, bias, ref_output);
+  op->Run();
   auto *act = new CudnnActivation<TC>({N, oH, oW, oC}, epilogue, handle);
   act->SetArgument(ref_output);
+  act->Run();
   CUDACHECK(cudaDeviceSynchronize());
-  float cudnn_time =
-      benchmark2(op, act, stream, input, filter, bias, ref_output);
+  float cudnn_time = benchmark2(op, act, stream);
 #if DEBUG
   std::cerr << "Cudnn Time: " << cudnn_time << "\n";
 #endif
@@ -727,9 +724,10 @@ void profile_conv2d_conv2d(Manifest &manifest, int64_t N0, int64_t iH0,
     auto *op0 = new CudnnConv<TA, TC, CompOn>(
         "NHWC", N0, iC0, iH0, iW0, oC0, kH0, kW0, oH0, oW0, strideH0, strideW0,
         paddingH0, paddingW0, dilationH0, dilationW0, handle);
-    op0->Initialize();
-    op0->Run(input0, filter0, ref_output0);
-    float time0 = benchmark(op0, stream, input0, filter0, ref_output0);
+    op0->AllocWorkspace();
+    op0->SetArgument(input0, filter0, ref_output0);
+    op0->Run();
+    float time0 = benchmark(op0, stream);
     delete op0;
     Relu(ref_output0, N0 * oH0 * oW0 * oC0, stream);
     CUDACHECK(cudaDeviceSynchronize());
@@ -737,9 +735,10 @@ void profile_conv2d_conv2d(Manifest &manifest, int64_t N0, int64_t iH0,
     auto *op1 = new CudnnConv<TA, TC, CompOn>(
         "NHWC", N1, iC1, iH1, iW1, oC1, kH1, kW1, oH1, oW1, strideH1, strideW1,
         paddingH1, paddingW1, dilationH1, dilationW1, handle);
-    op1->Initialize();
-    op1->Run(ref_output0, filter1, ref_output1);
-    float time1 = benchmark(op1, stream, ref_output0, filter1, ref_output1);
+    op1->AllocWorkspace();
+    op1->SetArgument(ref_output0, filter1, ref_output1);
+    op1->Run();
+    float time1 = benchmark(op1, stream);
     delete op1;
     Relu(ref_output1, N1 * oH1 * oW1 * oC1, stream);
     CUDACHECK(cudaDeviceSynchronize());

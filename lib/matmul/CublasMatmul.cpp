@@ -44,9 +44,7 @@ CublasMatmul<T, To, CompOn>::CublasMatmul(int64_t m, int64_t n, int64_t k,
 //===----------------------------------------------------------------------===//
 // cublasSgemm
 //===----------------------------------------------------------------------===//
-template <>
-void CublasMatmul<float, float, float>::Run(float *a_val, float *b_val,
-                                            float *c_val) {
+template <> void CublasMatmul<float, float, float>::Run() {
   float alpha = 1.0f, beta = 0.0f;
   if (!output_transpose) {
     if (!lhs_transpose && !rhs_transpose) {
@@ -133,27 +131,21 @@ void run_SgemmEx(const T *a_val, const T *b_val, To *c_val,
   }
 }
 
-template <>
-void CublasMatmul<__half, __half, float>::Run(__half *a_val, __half *b_val,
-                                              __half *c_val) {
+template <> void CublasMatmul<__half, __half, float>::Run() {
   auto input_dtype = ctype_to_cublas_dtype<__half>::value;
   auto output_dtype = ctype_to_cublas_dtype<__half>::value;
   run_SgemmEx(a_val, b_val, c_val, input_dtype, output_dtype, m, n, k,
               lhs_transpose, rhs_transpose, output_transpose, handle);
 }
 
-template <>
-void CublasMatmul<__half, float, float>::Run(__half *a_val, __half *b_val,
-                                             float *c_val) {
+template <> void CublasMatmul<__half, float, float>::Run() {
   auto input_dtype = ctype_to_cublas_dtype<__half>::value;
   auto output_dtype = ctype_to_cublas_dtype<float>::value;
   run_SgemmEx(a_val, b_val, c_val, input_dtype, output_dtype, m, n, k,
               lhs_transpose, rhs_transpose, output_transpose, handle);
 }
 
-template <>
-void CublasMatmul<__nv_bfloat16, __nv_bfloat16, float>::Run(
-    __nv_bfloat16 *a_val, __nv_bfloat16 *b_val, __nv_bfloat16 *c_val) {
+template <> void CublasMatmul<__nv_bfloat16, __nv_bfloat16, float>::Run() {
   auto input_dtype = ctype_to_cublas_dtype<__nv_bfloat16>::value;
   auto output_dtype = ctype_to_cublas_dtype<__nv_bfloat16>::value;
   run_SgemmEx(a_val, b_val, c_val, input_dtype, output_dtype, m, n, k,
@@ -163,9 +155,7 @@ void CublasMatmul<__nv_bfloat16, __nv_bfloat16, float>::Run(
 //===----------------------------------------------------------------------===//
 // cublasHgemm
 //===----------------------------------------------------------------------===//
-template <>
-void CublasMatmul<__half, __half, __half>::Run(__half *a_val, __half *b_val,
-                                               __half *c_val) {
+template <> void CublasMatmul<__half, __half, __half>::Run() {
   __half alpha = static_cast<__half>(1.0f);
   __half beta = static_cast<__half>(0.0f);
   if (!output_transpose) {

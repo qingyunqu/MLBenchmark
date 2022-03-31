@@ -13,11 +13,18 @@ public:
                bool rhs_transpose, bool output_transpose,
                cublasHandle_t handle);
   virtual bool Check() override { return true; }
-  virtual void Run(T *a_val, T *b_val, To *c_val) override;
+  virtual void SetArgument(T *a, T *b, To *c) override {
+    a_val = a;
+    b_val = b;
+    c_val = c;
+  }
+  virtual void Run() override;
   virtual ~CublasMatmul() = default;
 
 private:
   cublasHandle_t handle;
   int64_t m, n, k;
   bool lhs_transpose, rhs_transpose, output_transpose;
+  T *a_val = nullptr, *b_val = nullptr;
+  To *c_val = nullptr;
 };

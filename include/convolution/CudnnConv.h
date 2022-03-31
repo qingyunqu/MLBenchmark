@@ -16,8 +16,13 @@ public:
             int64_t paddingW, int64_t dilateH, int64_t dilateW,
             cudnnHandle_t handle);
   virtual bool Check() override { return true; }
-  virtual void Initialize() override;
-  virtual void Run(T *input, T *filter, To *output) override;
+  virtual void AllocWorkspace() override;
+  virtual void SetArgument(T *_input, T *_filter, To *_output) override {
+    input = _input;
+    filter = _filter;
+    output = _output;
+  }
+  virtual void Run() override;
   virtual ~CudnnConv();
 
 protected:
@@ -29,6 +34,8 @@ protected:
   cudnnConvolutionDescriptor_t convolution_descriptor;
   cudnnConvolutionFwdAlgoPerf_t perf;
   void *workspace = nullptr;
+  T *input = nullptr, *filter = nullptr;
+  To *output = nullptr;
 };
 
 template <typename T, typename To, typename CompOn>
@@ -40,13 +47,21 @@ public:
                 int64_t paddingW, int64_t dilateH, int64_t dilateW,
                 cudnnHandle_t handle, EpilogueEnum epilogue);
 
-  virtual void Run(T *input, T *filter, To *bias, To *output) override;
+  virtual void SetArgument(T *_input, T *_filter, To *_bias,
+                           To *_output) override {
+    this->input = _input;
+    this->filter = _filter;
+    this->bias = _bias;
+    this->output = _output;
+  }
+  virtual void Run() override;
 
   virtual ~CudnnConvBias();
 
 private:
   cudnnTensorDescriptor_t bias_descriptor;
   cudnnActivationDescriptor_t act_descriptor;
+  To *bias = nullptr;
 };
 
 template <typename T> class CudnnActivation : public Op<T> {

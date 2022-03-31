@@ -35,11 +35,12 @@ void Run(const std::string &layout, int64_t N, int64_t iH, int64_t iW,
   auto *op = new CudnnConv<T, To, CompOn>(layout, N, iC, iH, iW, oC, kH, kW, oH,
                                           oW, strideH, strideW, paddingH,
                                           paddingW, dilateH, dilateW, handle);
-  op->Initialize();
+  op->AllocWorkspace();
+  op->SetArgument(a, b, c);
 
   if (test) {
     // test
-    op->Run(a, b, c);
+    op->Run();
     CUDACHECK(cudaDeviceSynchronize());
     bool passed = CheckConv<T, To, CompOn>(
         a, b, c, layout, N, iC, iH, iW, oC, kH, kW, oH, oW, strideH, strideW,
@@ -47,7 +48,7 @@ void Run(const std::string &layout, int64_t N, int64_t iH, int64_t iW,
     std::cout << "Test " << (passed ? "Passed" : "Failed") << ".\n";
   } else {
     // benchmark
-    float time = benchmark<Op<T, To>>(op, stream, a, b, c);
+    float time = benchmark(op, stream);
     printf("layout: %s, N: %d, iH: %d, iW %d, iC: %d, oC: %d, kH: %d, kW: %d, "
            "oH: %d, oW: %d, "
            "strideH: %d, strideW: %d, paddingH: %d, paddingW: %d, dilateH: %d, "
@@ -94,8 +95,9 @@ void RunBias(const std::string &layout, int64_t N, int64_t iH, int64_t iW,
   auto *op = new CudnnConv<T, To, CompOn>(layout, N, iC, iH, iW, oC, kH, kW, oH,
                                           oW, strideH, strideW, paddingH,
                                           paddingW, dilateH, dilateW, handle);
-  op->Initialize();
-  op->Run(a, b, ref_c);
+  op->AllocWorkspace();
+  op->SetArgument(a, b, ref_c);
+  op->Run();
   BiasAdd(bias, ref_c, N * oH * oW, oC, stream);
   Sigmoid(ref_c, N * oH * oW * oC, stream);
   CUDACHECK(cudaDeviceSynchronize());
@@ -103,8 +105,9 @@ void RunBias(const std::string &layout, int64_t N, int64_t iH, int64_t iW,
   auto *op1 = new CudnnConvBias<T, To, CompOn>(
       layout, N, iC, iH, iW, oC, kH, kW, oH, oW, strideH, strideW, paddingH,
       paddingW, dilateH, dilateW, handle, EpilogueEnum::None);
-  op1->Initialize();
-  op1->Run(a, b, bias, c);
+  op1->AllocWorkspace();
+  op1->SetArgument(a, b, bias, c);
+  op1->Run();
   auto *act =
       new CudnnActivation<To>({N, oH, oW, oC}, EpilogueEnum::Sigmoid, handle);
   act->SetArgument(c);

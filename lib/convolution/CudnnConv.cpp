@@ -142,11 +142,11 @@ CudnnConvBias<T, To, CompOn>::CudnnConvBias(
 }
 
 //===----------------------------------------------------------------------===//
-// Initialize
+// AllocWorkspace
 //===----------------------------------------------------------------------===//
 
 template <typename T, typename To, typename CompOn>
-void CudnnConv<T, To, CompOn>::Initialize() {
+void CudnnConv<T, To, CompOn>::AllocWorkspace() {
   int returnedAlgoCount;
   // cudnnConvolutionFwdAlgoPerf_t results[10];
   CUDNNCHECK(cudnnFindConvolutionForwardAlgorithm(
@@ -171,7 +171,7 @@ void CudnnConv<T, To, CompOn>::Initialize() {
 //===----------------------------------------------------------------------===//
 
 template <typename T, typename To, typename CompOn>
-void CudnnConv<T, To, CompOn>::Run(T *input, T *filter, To *output) {
+void CudnnConv<T, To, CompOn>::Run() {
   float alpha = 1.f, beta = 0.f;
   CUDNNCHECK(cudnnConvolutionForward(
       handle, &alpha, input_descriptor, input, filter_descriptor, filter,
@@ -180,17 +180,16 @@ void CudnnConv<T, To, CompOn>::Run(T *input, T *filter, To *output) {
 }
 
 template <typename T, typename To, typename CompOn>
-void CudnnConvBias<T, To, CompOn>::Run(T *input, T *filter, To *bias,
-                                       To *output) {
+void CudnnConvBias<T, To, CompOn>::Run() {
   float alpha1 = 1.f,
         alpha2 = 0.f; // y = act ( alpha1 * conv(x) + alpha2 * z + bias )
   CUDNNCHECK(cudnnConvolutionBiasActivationForward(
-      this->handle, &alpha1, this->input_descriptor, input,
-      this->filter_descriptor, filter, this->convolution_descriptor,
+      this->handle, &alpha1, this->input_descriptor, this->input,
+      this->filter_descriptor, this->filter, this->convolution_descriptor,
       this->perf.algo, this->workspace, this->perf.memory, &alpha2,
       /*zDesc*/ this->output_descriptor, /*z*/ this->output_descriptor,
       bias_descriptor, bias,
-      /*actDesc*/ act_descriptor, this->output_descriptor, output));
+      /*actDesc*/ act_descriptor, this->output_descriptor, this->output));
 }
 
 //===----------------------------------------------------------------------===//
@@ -265,6 +264,7 @@ CudnnActivation<T>::CudnnActivation(const std::vector<int64_t> &shape,
 }
 
 template <typename T> void CudnnActivation<T>::Run() {
+  assert(input != nullptr);
   float alpha = 1.f, beta = 0.f;
   CUDNNCHECK(cudnnActivationForward(handle, act_descriptor, &alpha,
                                     input_descriptor, input, &beta,

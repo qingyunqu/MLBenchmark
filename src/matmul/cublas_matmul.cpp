@@ -25,10 +25,11 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
 
   auto *op = new CublasMatmul<T, To, CompOn>(
       m, n, k, lhs_transpose, rhs_transpose, output_transpose, handle);
+  op->SetArgument(a, b, c);
 
   if (test) {
     // test
-    op->Run(a, b, c);
+    op->Run();
     CUDACHECK(cudaDeviceSynchronize());
     bool passed = CheckMatmul<T, To, CompOn>(
         a, b, c, m, n, k, lhs_transpose, rhs_transpose, output_transpose, eps);
@@ -37,7 +38,7 @@ void Run(int64_t m, int64_t n, int64_t k, bool lhs_transpose,
     }
   } else {
     // benchmark
-    float time = benchmark<Op<T, To>>(op, stream, a, b, c);
+    float time = benchmark(op, stream);
     printf("%dx%dx%d, l:%d, r:%d, o:%d, time: %f ms\n", m, n, k, lhs_transpose,
            rhs_transpose, output_transpose, time);
   }
