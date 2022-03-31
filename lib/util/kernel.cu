@@ -4,6 +4,51 @@
 #include <cuda_runtime.h>
 #include <iostream>
 
+namespace constant {
+
+/// Returns 1, the multiplicative identity element
+template <typename T> __device__ T one();
+
+template <> __device__ float one<float>() {
+  uint32_t bits = 0x3f800000u;
+  return reinterpret_cast<float const &>(bits);
+}
+
+template <> __device__ __half one<__half>() {
+  uint16_t bits = 0x3c00u;
+  return reinterpret_cast<__half const &>(bits);
+}
+
+/// Returns (1/2)
+template <typename T> __device__ T half();
+
+template <> __device__ float half<float>() {
+  uint32_t bits = 0x3f000000u;
+  return reinterpret_cast<float const &>(bits);
+}
+
+template <> __device__ __half half<__half>() {
+  uint16_t bits = 0x3800u;
+  return reinterpret_cast<__half const &>(bits);
+}
+
+/// Returns sqrt(2), approximately 1.414...
+template <typename T> __device__ T root_two();
+
+template <> __device__ float root_two<float>() {
+  uint32_t bits = 0x3fb504f3u;
+  return reinterpret_cast<float const &>(bits);
+}
+
+template <> __device__ __half root_two<__half>() {
+  uint16_t bits = 0x3da8u;
+  return reinterpret_cast<__half const &>(bits);
+}
+
+} // namespace constant
+
+///////////////////////////////////////////////////////////////////////////////
+
 template <typename T>
 __global__ void bias_add(T *bias, T *result, int64_t m, int64_t n) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
@@ -44,6 +89,30 @@ template <typename T> __global__ void tanh(T *result, int64_t size) {
   }
 }
 
+template <typename T> struct GELU {
+  __device__ T operator()(T const &scalar) const {
+    return T(constant::half<T>() * scalar *
+             (constant::one<T>() +
+              (T)erff((float)(scalar / constant::root_two<T>()))));
+  }
+};
+
+template <> struct GELU<float> {
+  __device__ float operator()(float const &scalar) const {
+    return constant::half<float>() * scalar *
+           (constant::one<float>() +
+            erff(scalar / constant::root_two<float>()));
+  }
+};
+
+template <typename T> __global__ void gelu(T *result, int64_t size) {
+  int id = blockIdx.x * blockDim.x + threadIdx.x;
+  GELU<T> Gelu;
+  if (id < size) {
+    result[id] = Gelu(result[id]);
+  }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
@@ -70,6 +139,11 @@ template <typename T> void Tanh(T *result, int64_t size, cudaStream_t stream) {
   after_kernel_launch();
 }
 
+template <typename T> void Gelu(T *result, int64_t size, cudaStream_t stream) {
+  gelu<T><<<(size + 256 - 1) / 256, 256, 0, stream>>>(result, size);
+  after_kernel_launch();
+}
+
 template void BiasAdd<float>(float *, float *, int64_t, int64_t, cudaStream_t);
 template void BiasAdd<__half>(__half *, __half *, int64_t, int64_t,
                               cudaStream_t);
@@ -79,3 +153,5 @@ template void Sigmoid<float>(float *, int64_t, cudaStream_t);
 template void Sigmoid<__half>(__half *, int64_t, cudaStream_t);
 template void Tanh<float>(float *, int64_t, cudaStream_t);
 template void Tanh<__half>(__half *, int64_t, cudaStream_t);
+template void Gelu<float>(float *, int64_t, cudaStream_t);
+template void Gelu<__half>(__half *, int64_t, cudaStream_t);
