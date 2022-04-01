@@ -65,6 +65,7 @@ Operation *get_kernel_by_name(Manifest &manifest, const std::string &name) {
 template <typename TA, typename TB, typename TC, typename CompOn>
 void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
                   LayoutEnum layout_a, LayoutEnum layout_b, LayoutEnum layout_c,
+                  EpilogueEnum epilogue /* None */,
                   const std::string &kernel_name /* = ""*/) {
   using ElementInputA = typename ctype_to_cutlass_type<TA>::type;
   using ElementInputB = typename ctype_to_cutlass_type<TB>::type;
@@ -102,7 +103,7 @@ void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
   typename Operation::OperationTrait trait;
   if (layout_c == LayoutEnum::RowMajor) {
     trait = {OperationEnum::Matmul,
-             EpilogueEnum::None,
+             epilogue,
              cutlass_type_to_dtype_v<ElementInputA>,
              layout_a,
              cutlass_type_to_dtype_v<ElementInputB>,
@@ -112,7 +113,7 @@ void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
              cutlass_type_to_dtype_v<ElementAccumulator>};
   } else if (layout_c == LayoutEnum::ColumnMajor) {
     trait = {OperationEnum::Matmul,
-             EpilogueEnum::None,
+             epilogue,
              cutlass_type_to_dtype_v<ElementInputB>,
              transpose_matrix(layout_b),
              cutlass_type_to_dtype_v<ElementInputA>,
@@ -172,19 +173,15 @@ void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
             << "\n\n\n";
 }
 
-template void profile_gemm<__half, __half, float, float>(Manifest &, int64_t,
-                                                         int64_t, int64_t,
-                                                         LayoutEnum, LayoutEnum,
-                                                         LayoutEnum,
-                                                         const std::string &);
-template void
-profile_gemm<__half, __half, __half, float>(Manifest &, int64_t, int64_t,
-                                            int64_t, LayoutEnum, LayoutEnum,
-                                            LayoutEnum, const std::string &);
-template void
-profile_gemm<__half, __half, __half, __half>(Manifest &, int64_t, int64_t,
-                                             int64_t, LayoutEnum, LayoutEnum,
-                                             LayoutEnum, const std::string &);
+template void profile_gemm<__half, __half, float, float>(
+    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum,
+    EpilogueEnum, const std::string &);
+template void profile_gemm<__half, __half, __half, float>(
+    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum,
+    EpilogueEnum, const std::string &);
+template void profile_gemm<__half, __half, __half, __half>(
+    Manifest &, int64_t, int64_t, int64_t, LayoutEnum, LayoutEnum, LayoutEnum,
+    EpilogueEnum, const std::string &);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // GemmBias
@@ -466,7 +463,7 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
                     int64_t iC, int64_t oH, int64_t oW, int64_t oC, int64_t kH,
                     int64_t kW, int64_t strideH, int64_t strideW,
                     int64_t paddingH, int64_t paddingW, int64_t dilationH,
-                    int64_t dilationW,
+                    int64_t dilationW, EpilogueEnum epilogue /* = None */,
                     const std::string &kernel_name /* = "" */) {
   // only profile NHWC layout
   using ElementInputA = typename ctype_to_cutlass_type<TA>::type;
@@ -504,7 +501,7 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
 
   typename Operation::OperationTrait trait{
       OperationEnum::Conv2d,
-      EpilogueEnum::None,
+      epilogue,
       cutlass_type_to_dtype_v<ElementInputA>,
       LayoutEnum::NHWC,
       cutlass_type_to_dtype_v<ElementInputB>,
@@ -566,11 +563,11 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
 template void profile_conv2d<__half, __half, __half, float>(
     Manifest &, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
     int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
-    const std::string &);
+    EpilogueEnum, const std::string &);
 template void profile_conv2d<__half, __half, __half, __half>(
     Manifest &, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
     int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t, int64_t,
-    const std::string &);
+    EpilogueEnum, const std::string &);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // Conv2dBias
@@ -615,7 +612,8 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
   op->AllocWorkspace();
   op->SetArgument(input, filter, bias, ref_output);
   op->Run();
-  auto *act = new CudnnActivation<TC>({N, oH, oW, oC}, epilogue, handle);
+  // auto *act = new CudnnActivation<TC>({N, oH, oW, oC}, epilogue, handle);
+  auto *act = new MyActivation<TC>(N * oH * oW * oC, epilogue, stream);
   act->SetArgument(ref_output);
   act->Run();
   CUDACHECK(cudaDeviceSynchronize());

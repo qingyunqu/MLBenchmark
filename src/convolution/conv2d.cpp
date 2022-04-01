@@ -37,6 +37,6 @@ int main(int argc, char *argv[]) {
 
   profile_conv2d<__half, __half, __half, float>(
       manifest, N, iH, iW, iC, oH, oW, oC, kH, kW, strideH, strideW, paddingH,
-      paddingW, dilationH, dilationW, kernel_name);
+      paddingW, dilationH, dilationW, EpilogueEnum::None, kernel_name);
   return 0;
 }

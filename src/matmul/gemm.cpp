@@ -49,13 +49,16 @@ int main(int argc, char *argv[]) {
 
   if (output_type == "fp32" && accmu_type == "fp32") {
     profile_gemm<__half, __half, float, float>(manifest, m, n, k, layout_a,
-                                               layout_b, layout_c, kernel_name);
+                                               layout_b, layout_c,
+                                               EpilogueEnum::None, kernel_name);
   } else if (output_type == "fp16" && accmu_type == "fp32") {
     profile_gemm<__half, __half, __half, float>(
-        manifest, m, n, k, layout_a, layout_b, layout_c, kernel_name);
+        manifest, m, n, k, layout_a, layout_b, layout_c, EpilogueEnum::None,
+        kernel_name);
   } else if (output_type == "fp16" && accmu_type == "fp16") {
     profile_gemm<__half, __half, __half, __half>(
-        manifest, m, n, k, layout_a, layout_b, layout_c, kernel_name);
+        manifest, m, n, k, layout_a, layout_b, layout_c, EpilogueEnum::None,
+        kernel_name);
   } else {
     fprintf(stderr, "unsupported output and accmulator type\n");
     return -1;

@@ -6,6 +6,10 @@ add_executable(conv2d "${CMAKE_CURRENT_SOURCE_DIR}/conv2d.cpp")
 # target_link_directories(conv2d PRIVATE ${bench_CUDA_LINK_DIRS})
 target_link_libraries(conv2d bench cutlass_conv2d_library ${bench_CUDA_LIBRARIES})
 
+add_executable(conv2d_gelu "${CMAKE_CURRENT_SOURCE_DIR}/conv2d_gelu.cpp")
+# target_link_directories(conv2d PRIVATE ${bench_CUDA_LINK_DIRS})
+target_link_libraries(conv2d_gelu bench cutlass_conv2d_gelu_library ${bench_CUDA_LIBRARIES})
+
 add_executable(conv2d_bias "${CMAKE_CURRENT_SOURCE_DIR}/conv2d_bias.cpp")
 # target_link_directories(conv2d_bias PRIVATE ${bench_CUDA_LINK_DIRS})
 target_link_libraries(conv2d_bias bench cutlass_conv2d_bias_library ${bench_CUDA_LIBRARIES})
