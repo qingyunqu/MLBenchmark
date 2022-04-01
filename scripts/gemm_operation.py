@@ -654,7 +654,7 @@ class EmitGemmConfigurationLibrary:
     self.instance_template = {
       GemmKind.Gemm: """
 ${compile_guard_start}
-  manifest.append(new ${gemm_kind}<Operation_${operation_name}>("${operation_name}"));
+  manifest.append(new ${gemm_kind}<Operation_${operation_name}>("${operation_name}", ${epilogue_enum}));
 ${compile_guard_end}
 """,
       GemmKind.GemmBias: """

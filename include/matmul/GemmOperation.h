@@ -19,10 +19,12 @@ public:
   using LayoutC = typename Gemm::LayoutC;
   using ElementAccumulator = typename Gemm::ElementAccumulator;
 
-  GemmOperation(const char *kernel_name) : Operation(kernel_name) {
+  GemmOperation(const char *kernel_name,
+                EpilogueEnum epilogue = EpilogueEnum::None)
+      : Operation(kernel_name) {
     trait =
         Operation::OperationTrait{OperationEnum::Matmul,
-                                  EpilogueEnum::None,
+                                  epilogue,
                                   cutlass_type_to_dtype_v<ElementA>,
                                   cutlass_layout_to_layout_v<LayoutA>,
                                   cutlass_type_to_dtype_v<ElementB>,

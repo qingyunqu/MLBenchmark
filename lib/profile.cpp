@@ -94,10 +94,15 @@ void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
       handle);
   op->SetArgument(a, b, ref_c);
   op->Run();
+  auto *act = new MyActivation<TC>(m * n, epilogue, stream);
+  act->SetArgument(ref_c);
+  act->Run();
   CUDACHECK(cudaDeviceSynchronize());
-  float cublas_time = benchmark(op, stream);
+  float cublas_time = benchmark2(op, act, stream);
 #if DEBUG
-  std::cerr << "Cublas Time: " << cublas_time << "\n";
+  std::cerr << "Cublas"
+            << " + " << epilogue_enum_to_str(epilogue)
+            << " Time: " << cublas_time << "\n";
 #endif
 
   typename Operation::OperationTrait trait;
@@ -157,20 +162,20 @@ void profile_gemm(Manifest &manifest, int64_t m, int64_t n, int64_t k,
   CUDACHECK(cudaFree(c));
   CUDACHECK(cudaFree(ref_c));
   delete op;
+  delete act;
   CUBLASCHECK(cublasDestroy(handle));
 
   if (results.size() == 0)
     return;
   std::sort(results.begin(), results.end());
-  std::cout << "Gemm " << m << "x" << n << "x" << k << " "
-            << layout_enum_to_str(layout_a) << "-"
+  std::cout << "Gemm" << epilogue_enum_to_str(epilogue) << " " << m << "x" << n
+            << "x" << k << " " << layout_enum_to_str(layout_a) << "-"
             << layout_enum_to_str(layout_b) << "-"
             << layout_enum_to_str(layout_c) << ":\n";
   std::cout << "KernelName, Passed, CutlassTime, CublasTime\n";
   std::cout << results[0].kernel_name << ", "
             << (results[0].passed ? "Passed" : "Failed") << ", "
-            << results[0].cutlass_time << ", " << results[0].library_time
-            << "\n\n\n";
+            << results[0].cutlass_time << ", " << cublas_time << "\n\n\n";
 }
 
 template void profile_gemm<__half, __half, float, float>(
@@ -226,11 +231,9 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
   op->SetArgument(a, b, ref_d);
   op->Run();
   BiasAdd(bias, ref_d, m, n, stream);
-  if (epilogue == EpilogueEnum::Relu) {
-    Relu(ref_d, m * n, stream);
-  } else if (epilogue == EpilogueEnum::Sigmoid) {
-    Sigmoid(ref_d, m * n, stream);
-  }
+  auto *act = new MyActivation<TC>(m * n, epilogue, stream);
+  act->SetArgument(ref_d);
+  act->Run();
   CUDACHECK(cudaDeviceSynchronize());
 
   typename Operation::OperationTrait trait{
@@ -274,6 +277,7 @@ void profile_gemm_bias(Manifest &manifest, int64_t m, int64_t n, int64_t k,
   CUDACHECK(cudaFree(d));
   CUDACHECK(cudaFree(ref_d));
   delete op;
+  delete act;
   CUBLASCHECK(cublasDestroy(handle));
 
   if (results.size() == 0)
@@ -493,10 +497,15 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
   op->AllocWorkspace();
   op->SetArgument(input, filter, ref_output);
   op->Run();
+  auto *act = new MyActivation<TC>(N * oH * oW * oC, epilogue, stream);
+  act->SetArgument(ref_output);
+  act->Run();
   CUDACHECK(cudaDeviceSynchronize());
-  float cudnn_time = benchmark(op, stream);
+  float cudnn_time = benchmark2(op, act, stream);
 #if DEBUG
-  std::cerr << "Cudnn Time: " << cudnn_time << "\n";
+  std::cerr << "Cudnn"
+            << " + " << epilogue_enum_to_str(epilogue)
+            << " Time: " << cudnn_time << "\n";
 #endif
 
   typename Operation::OperationTrait trait{
@@ -543,21 +552,22 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
   CUDACHECK(cudaFree(output));
   CUDACHECK(cudaFree(ref_output));
   delete op;
+  delete act;
   CUDNNCHECK(cudnnDestroy(handle));
 
   if (results.size() == 0)
     return;
   std::sort(results.begin(), results.end());
-  std::cout << "Conv2dFrop " << N << "x" << iH << "x" << iW << "x" << iC << ", "
-            << oC << "x" << kH << "x" << kW << "x" << iC << ", " << N << "x"
-            << oH << "x" << oW << "x" << oC << ", "
+  std::cout << "Conv2dFrop" << epilogue_enum_to_str(epilogue) << " " << N << "x"
+            << iH << "x" << iW << "x" << iC << ", " << oC << "x" << kH << "x"
+            << kW << "x" << iC << ", " << N << "x" << oH << "x" << oW << "x"
+            << oC << ", "
             << "stride: " << strideH << "x" << strideW
             << ", padding: " << paddingH << "x" << paddingW << ":\n";
   std::cout << "KernelName, Passed, CutlassTime, CudnnTime\n";
   std::cout << results[0].kernel_name << ", "
             << (results[0].passed ? "Passed" : "Failed") << ", "
-            << results[0].cutlass_time << ", " << results[0].library_time
-            << "\n\n\n";
+            << results[0].cutlass_time << ", " << cudnn_time << "\n\n\n";
 }
 
 template void profile_conv2d<__half, __half, __half, float>(
@@ -619,7 +629,9 @@ void profile_conv2d_bias(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
   CUDACHECK(cudaDeviceSynchronize());
   float cudnn_time = benchmark2(op, act, stream);
 #if DEBUG
-  std::cerr << "Cudnn Time: " << cudnn_time << "\n";
+  std::cerr << "CudnnConvBias"
+            << " + " << epilogue_enum_to_str(epilogue)
+            << " Time: " << cudnn_time << "\n";
 #endif
 
   typename Operation::OperationTrait trait{

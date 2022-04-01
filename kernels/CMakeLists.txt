@@ -18,6 +18,10 @@ add_library(cutlass_conv2d_bias_sigmoid_library ${cutlass_conv2d_bias_sigmoid_sr
 file(GLOB_RECURSE cutlass_conv2d_gelu_src CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/conv2d_gelu/*.cu")
 add_library(cutlass_conv2d_gelu_library ${cutlass_conv2d_gelu_src})
 
+
+
+
+
 # cutlass generated gemm
 file(GLOB_RECURSE cutlass_gemm_src CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/gemm/*.cu")
 add_library(cutlass_gemm_library ${cutlass_gemm_src})
@@ -29,3 +33,7 @@ add_library(cutlass_gemm_bias_library ${cutlass_gemm_bias_src})
 # cutlass generated gemm_bias_relu
 file(GLOB_RECURSE cutlass_gemm_bias_relu_src CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/gemm_bias_relu/*.cu")
 add_library(cutlass_gemm_bias_relu_library ${cutlass_gemm_bias_relu_src})
+
+# cutlass generated gemm_gelu
+file(GLOB_RECURSE cutlass_gemm_gelu_src CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/gemm_gelu/*.cu")
+add_library(cutlass_gemm_gelu_library ${cutlass_gemm_gelu_src})
