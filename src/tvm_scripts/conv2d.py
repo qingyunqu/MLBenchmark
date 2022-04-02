@@ -104,26 +104,40 @@ def test_conv2d_nchw(sch, args, target, N, H, W, CO, CI, KH, KW, stride, padding
     )
 
 
+params = [
+    [224, 224, 3, 64, 7, 7, (2, 2), (3, 3)],  # 1
+    [56, 56, 64, 64, 3, 3, (1, 1), (1, 1)],   # 2
+    [56, 56, 64, 128, 1, 1, (2, 2), (0, 0)],  # 3
+    [56, 56, 64, 128, 3, 3, (2, 2), (1, 1)],  # 4
+    [28, 28, 128, 128, 3, 3, (1, 1), (1, 1)], # 5
+    [14, 14, 256, 256, 3, 3, (1, 1), (1, 1)], # 6
+    [14, 14, 256, 512, 1, 1, (2, 2), (0, 0)], # 7
+    [14, 14, 256, 512, 3, 3, (2, 2), (1, 1)], # 8
+    [7, 7, 512, 512, 3, 3, (1, 1), (1, 1)]    # 9
+]
+
 if __name__ == "__main__":
     target = tvm.target.Target("cuda")
 
-    # Use the last layer in ResNet-50
-    N, IH, IW, CI, CO, KH, KW, strides, padding = 32, 56, 56, 64, 64, 3, 3, (1, 1), (1, 1)
+    N = 32
+    IH, IW, CI, CO, KH, KW, strides, padding = params[1]
+
     task = auto_scheduler.SearchTask(
         func=conv2d_nhwc_layer, args=(N, IH, IW, CO, CI, KH, KW, strides, padding), target=target
     )
     # Inspect the computational graph
-    print("Computational DAG:")
-    print(task.compute_dag)
+    # print("Computational DAG:")
+    # print(task.compute_dag)
 
     log_file = "log.json"
+    os.system("rm " + log_file)
     # Run auto-tuning (search)
-    measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=100)
+    measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=0)
     tune_option = auto_scheduler.TuningOptions(
         num_measure_trials=100,  # change this to 1000 to achieve the best performance
         runner=measure_ctx.runner,
         measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
-        verbose=2,
+        verbose=1,
     )
     task.tune(tune_option)
     del measure_ctx
