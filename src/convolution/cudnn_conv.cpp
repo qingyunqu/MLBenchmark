@@ -112,6 +112,9 @@ void RunBias(const std::string &layout, int64_t N, int64_t iH, int64_t iW,
       new CudnnActivation<To>({N, oH, oW, oC}, EpilogueEnum::Sigmoid, handle);
   act->SetArgument(c);
   act->Run();
+
+  delete op;
+  delete op1;
   delete act;
 
   bool passed =

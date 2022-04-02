@@ -10,7 +10,7 @@ void initialize_all_conv2d_operations(Manifest &manifest);
 } // namespace cutlass
 
 int main(int argc, char *argv[]) {
-  assert(argc == 12 || argc == 13);
+  assert(argc >= 12);
   int64_t iH = atoi(argv[1]);
   int64_t iW = atoi(argv[2]);
   int64_t iC = atoi(argv[3]);
@@ -22,9 +22,11 @@ int main(int argc, char *argv[]) {
   int64_t paddingH = atoi(argv[9]);
   int64_t paddingW = atoi(argv[10]);
   int64_t N = atoi(argv[11]);
-  std::string kernel_name = "";
-  if (argc == 13) {
-    kernel_name = argv[12];
+  std::unordered_set<std::string> run_kernels;
+  if (argc >= 13) {
+    for (size_t i = 12; i < argc; i++) {
+      run_kernels.insert(argv[i]);
+    }
   }
 
   int64_t dilationH = 1;
@@ -37,6 +39,6 @@ int main(int argc, char *argv[]) {
 
   profile_conv2d_bias<__half, __half, __half, float>(
       manifest, N, iH, iW, iC, oH, oW, oC, kH, kW, strideH, strideW, paddingH,
-      paddingW, dilationH, dilationW, EpilogueEnum::Relu, kernel_name);
+      paddingW, dilationH, dilationW, EpilogueEnum::Relu, run_kernels);
   return 0;
 }

@@ -12,7 +12,7 @@ void initialize_all_gemm_operations(Manifest &manifest);
 } // namespace cutlass
 
 int main(int argc, char *argv[]) {
-  assert(argc == 9 || argc == 10);
+  assert(argc >= 9);
   std::string output_type(argv[1]);
   std::string accmu_type(argv[2]);
   std::string lhs_layout(argv[3]);
@@ -21,9 +21,11 @@ int main(int argc, char *argv[]) {
   int64_t m = atoi(argv[6]);
   int64_t n = atoi(argv[7]);
   int64_t k = atoi(argv[8]);
-  std::string kernel_name = "";
-  if (argc == 10) {
-    kernel_name = argv[9];
+  std::unordered_set<std::string> run_kernels;
+  if (argc >= 10) {
+    for (size_t i = 9; i < argc; i++) {
+      run_kernels.insert(argv[i]);
+    }
   }
 
   LayoutEnum layout_a = str_to_layout_enum(lhs_layout);
@@ -48,15 +50,15 @@ int main(int argc, char *argv[]) {
   if (output_type == "fp32" && accmu_type == "fp32") {
     profile_gemm<__half, __half, float, float>(
         manifest, m, n, k, layout_a, layout_b, layout_c, EpilogueEnum::Grelu,
-        kernel_name);
+        run_kernels);
   } else if (output_type == "fp16" && accmu_type == "fp32") {
     profile_gemm<__half, __half, __half, float>(
         manifest, m, n, k, layout_a, layout_b, layout_c, EpilogueEnum::Grelu,
-        kernel_name);
+        run_kernels);
   } else if (output_type == "fp16" && accmu_type == "fp16") {
     profile_gemm<__half, __half, __half, __half>(
         manifest, m, n, k, layout_a, layout_b, layout_c, EpilogueEnum::Grelu,
-        kernel_name);
+        run_kernels);
   } else {
     fprintf(stderr, "unsupported output and accmulator type\n");
     return -1;
