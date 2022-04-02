@@ -106,6 +106,7 @@ def test_conv2d_nchw(sch, args, target, N, H, W, CO, CI, KH, KW, stride, padding
 
 
 params = [
+    [],
     [224, 224, 3, 64, 7, 7, (2, 2), (3, 3)],  # 1
     [56, 56, 64, 64, 3, 3, (1, 1), (1, 1)],   # 2
     [56, 56, 64, 128, 1, 1, (2, 2), (0, 0)],  # 3
@@ -120,8 +121,8 @@ params = [
 if __name__ == "__main__":
     target = tvm.target.Target("cuda")
 
-    N = 128
-    IH, IW, CI, CO, KH, KW, strides, padding = params[1]
+    N = 1
+    IH, IW, CI, CO, KH, KW, strides, padding = params[6]
 
     task = auto_scheduler.SearchTask(
         func=conv2d_nhwc_layer, args=(N, IH, IW, CO, CI, KH, KW, strides, padding), target=target
