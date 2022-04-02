@@ -74,8 +74,9 @@ def test_conv2d_nhwc(sch, args, target, N, H, W, CO, CI, KH, KW, stride, padding
 
     # Evaluate execution time
     evaluator = func.time_evaluator(func.entry_name, dev, min_repeat_ms=600)
+    print("\nN: %d, H: %d, W: %d, iC: %d, oC: %d, kW: %d, kH: %d" % (N, H, W, CI, CO, KH, KW))
     print(
-        "Execution time of this operator: %.3f ms"
+        "\nExecution time of this operator: %.3f ms"
         % (np.median(evaluator(data_tvm, weight_tvm, conv_tvm).results) * 1000)
     )
 
@@ -119,7 +120,7 @@ params = [
 if __name__ == "__main__":
     target = tvm.target.Target("cuda")
 
-    N = 32
+    N = 128
     IH, IW, CI, CO, KH, KW, strides, padding = params[1]
 
     task = auto_scheduler.SearchTask(
