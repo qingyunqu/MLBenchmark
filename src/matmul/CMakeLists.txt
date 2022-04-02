@@ -16,3 +16,6 @@ target_link_libraries(gemm_bias_relu bench cutlass_gemm_bias_relu_library ${benc
 
 add_executable(gemm_gelu "${CMAKE_CURRENT_SOURCE_DIR}/gemm_gelu.cpp")
 target_link_libraries(gemm_gelu bench cutlass_gemm_gelu_library ${bench_CUDA_LIBRARIES})
+
+add_executable(gemm_sigmoid "${CMAKE_CURRENT_SOURCE_DIR}/gemm_sigmoid.cpp")
+target_link_libraries(gemm_sigmoid bench cutlass_gemm_sigmoid_library ${bench_CUDA_LIBRARIES})

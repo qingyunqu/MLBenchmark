@@ -37,3 +37,7 @@ add_library(cutlass_gemm_bias_relu_library ${cutlass_gemm_bias_relu_src})
 # cutlass generated gemm_gelu
 file(GLOB_RECURSE cutlass_gemm_gelu_src CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/gemm_gelu/*.cu")
 add_library(cutlass_gemm_gelu_library ${cutlass_gemm_gelu_src})
+
+# cutlass generated gemm_sigmoid
+file(GLOB_RECURSE cutlass_gemm_sigmoid_src CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/gemm_sigmoid/*.cu")
+add_library(cutlass_gemm_sigmoid_library ${cutlass_gemm_sigmoid_src})

@@ -482,8 +482,8 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
   CUDACHECK(cudaMalloc(&filter, oC * kH * kW * iC * sizeof(TB)));
   CUDACHECK(cudaMalloc(&output, N * oH * oW * oC * sizeof(TC)));
   CUDACHECK(cudaMalloc(&ref_output, N * oH * oW * oC * sizeof(TC)));
-  RandCUDABuffer(input, N * iH * iW * iC);   //, -1.f, 1.f);
-  RandCUDABuffer(filter, oC * kH * kW * iC); //, -1.f, 1.f);
+  RandCUDABuffer(input, N * iH * iW * iC, -1.f, 1.f);
+  RandCUDABuffer(filter, oC * kH * kW * iC, -1.f, 1.f);
   RandCUDABuffer(output, N * oH * oW * oC);
   FillCUDABuffer(ref_output, N * oH * oW * oC);
 
@@ -536,8 +536,8 @@ void profile_conv2d(Manifest &manifest, int64_t N, int64_t iH, int64_t iW,
         kernel->GetWorkspaceSize());
     kernel->Initialize(stream, workspace.get());
     kernel->Run();
-    bool passed =
-        CheckCUDABuffer<TC>(output, ref_output, N * oH * oW * oC, 1e-3f, 1e-2f);
+    bool passed = CheckCUDABuffer<TC>(output, ref_output, N * oH * oW * oC,
+                                      1e-3f, 1e-2f, 20);
     float time = benchmark<Operation>(kernel, stream);
 #if DEBUG
     std::cerr << kernel->Name() << ", " << (passed ? "Passed" : "Failed");

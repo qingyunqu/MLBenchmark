@@ -37,8 +37,9 @@ public:
       Tanh(input, size, stream);
     } else if (epilogue == EpilogueEnum::Grelu) {
       Gelu(input, size, stream);
+    } else {
+      assert(false);
     }
-    assert(false);
   }
 
 private:
