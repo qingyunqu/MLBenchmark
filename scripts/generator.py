@@ -60,8 +60,9 @@ def CreateGemmOperator(manifest, layouts, tile_descriptions, data_type, \
             B = TensorDescription(element_b, layout[1], alignment, complex_transform[1])
             C = TensorDescription(element_c, layout[2], alignment_c)
 
-            new_operation = GemmOperation(GemmKind.GemmBias, tile_description.minimum_compute_capability, \
-              tile_description, A, B, C, element_epilogue, epilogue_functor, swizzling_functor)
+            # (liuyuanqiang): modify this to generate different kernel
+            new_operation = GemmOperation(GemmKind.Gemm, tile_description.minimum_compute_capability, \
+              tile_description, A, B, C, element_epilogue, EpilogueFunctor.LinearCombinationGELU, swizzling_functor)
 
             manifest.append(new_operation)
             operations.append(new_operation)
@@ -154,7 +155,7 @@ def CreateGemmPlanarComplexOperator(manifest, layouts, tile_descriptions, data_t
 # Convolution for 2D operations
 def CreateConv2dOperator(manifest, layout, tile_descriptions, data_type, alignment_constraints, \
   conv_kinds = [ConvKind.Fprop], \
-  epilogue_functor = EpilogueFunctor.LinearCombination, swizzling_functor = SwizzlingFunctor.Identity4):
+  epilogue_functor = EpilogueFunctor.LinearCombinationSigmoid, swizzling_functor = SwizzlingFunctor.Identity4):
   
   element_a, element_b, element_c, element_epilogue = data_type
   
@@ -189,7 +190,7 @@ def CreateConv2dOperator(manifest, layout, tile_descriptions, data_type, alignme
   
         # Strided support for Analytic and Optimized Fprop
         for iterator_algorithm in iterator_algorithms:
-          new_operation = Conv2dOperation(ConvKind.Fprop, iterator_algorithm, tile.minimum_compute_capability, tile,\
+          new_operation = Conv2dOperation(ConvKind.FpropBias, iterator_algorithm, tile.minimum_compute_capability, tile,\
             A, B, C, element_epilogue, StrideSupport.Strided, epilogue_functor, swizzling_functor_)
   
           manifest.append(new_operation)
@@ -423,11 +424,6 @@ def GenerateSM50_Simt_complex(manifest, args):
     CreateConv2dOperator(manifest, conv_layout, tile_descriptions, data_type, alignment_constraints)
 #
 
-#
-def GenerateSM50(manifest, args):
-  GenerateSM50_Simt(manifest, args)
-  GenerateSM50_Simt_complex(manifest, args)
-
 ###################################################################################################
 ###################################################################################################
 
@@ -475,10 +471,6 @@ def GenerateSM60_Simt(manifest, args):
     CreateGemmOperator(manifest, layouts, tile_descriptions, \
       data_type, alignment_constraints)
 #
-
-#
-def GenerateSM60(manifest, args):
-  GenerateSM60_Simt(manifest, args)
 
 ###################################################################################################
 ###################################################################################################
@@ -534,10 +526,6 @@ def GenerateSM61_Simt(manifest, args):
     CreateGemmOperator(manifest, layouts, tile_descriptions, \
       data_type_mixed, alignment_constraints)
 #
-
-#
-def GenerateSM61(manifest, args):
-  GenerateSM61_Simt(manifest, args)
 
 ###################################################################################################
 ###################################################################################################
@@ -736,18 +724,7 @@ def GenerateSM70_WmmaTensorOp_161616(manifest, args):
 
       CreateGemmOperator(manifest, layouts, tile_descriptions, \
         data_type_mixed, alignment_constraints)
-
 #
-##################################################################################################
-#
-
-def GenerateSM70(manifest, args):
-  GenerateSM70_TensorOp_884(manifest, args)
-  # GenerateSM70_PlanarComplexTensorOp_884(manifest, args)
-
-  # To limit build size, WMMA GEMMs are disabled for now.
-  #
-  GenerateSM70_WmmaTensorOp_161616(manifest, args)
 
 ###################################################################################################
 ###################################################################################################
@@ -1303,18 +1280,6 @@ def GenerateSM75_Simt_complex(manifest, args):
     CreateConv2dOperator(manifest, conv_layout, tile_descriptions, data_type, alignment_constraints)
 #
 
-def GenerateSM75(manifest, args):
-  GenerateSM75_TensorOp_1688(manifest, args)
-  #GenerateSM75_PlanarComplexTensorOp_1688(manifest, args)
-  #GenerateSM75_TensorOp_8816_TN(manifest, args)
-  #GenerateSM75_TensorOp_8816_Interleaved(manifest, args)
-  #GenerateSM75_TensorOp_8832_TN(manifest, args)
-  #GenerateSM75_TensorOp_8832_Interleaved(manifest, args)
-  #GenerateSM75_TensorOp_88128(manifest, args)
-  #GenerateSM75_WmmaTensorOp_161616(manifest, args)
-  #GenerateSM75_Simt_complex(manifest, args)
-
-
 ###################################################################################################
 ###################################################################################################
 
@@ -1325,10 +1290,10 @@ def GenerateSM80_TensorOp_16816(manifest, args):
     return
 
   layouts = [
-    (LayoutType.ColumnMajor, LayoutType.ColumnMajor, LayoutType.ColumnMajor),
-    (LayoutType.ColumnMajor, LayoutType.RowMajor, LayoutType.ColumnMajor),
-    (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.ColumnMajor),
-    (LayoutType.RowMajor, LayoutType.RowMajor, LayoutType.ColumnMajor),
+    (LayoutType.ColumnMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
+    (LayoutType.ColumnMajor, LayoutType.RowMajor, LayoutType.RowMajor),
+    (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
+    (LayoutType.RowMajor, LayoutType.RowMajor, LayoutType.RowMajor),
   ]
 
   math_instructions = [
@@ -2631,32 +2596,65 @@ def GenerateSM80_Simt_complex(manifest, args):
 #
 
 ###################################################################################################
+###################################################################################################
+
+#
+def GenerateSM50(manifest, args):
+  GenerateSM50_Simt(manifest, args)
+  GenerateSM50_Simt_complex(manifest, args)
+
+#
+def GenerateSM60(manifest, args):
+  GenerateSM60_Simt(manifest, args)
+
+#
+def GenerateSM61(manifest, args):
+  GenerateSM61_Simt(manifest, args)
+
+#
+def GenerateSM70(manifest, args):
+  GenerateSM70_TensorOp_884(manifest, args)
+  # GenerateSM70_PlanarComplexTensorOp_884(manifest, args)
+  # To limit build size, WMMA GEMMs are disabled for now.
+  GenerateSM70_WmmaTensorOp_161616(manifest, args)
+
+#
+def GenerateSM75(manifest, args):
+  GenerateSM75_TensorOp_1688(manifest, args)
+  #GenerateSM75_PlanarComplexTensorOp_1688(manifest, args)
+  #GenerateSM75_TensorOp_8816_TN(manifest, args)
+  #GenerateSM75_TensorOp_8816_Interleaved(manifest, args)
+  #GenerateSM75_TensorOp_8832_TN(manifest, args)
+  #GenerateSM75_TensorOp_8832_Interleaved(manifest, args)
+  #GenerateSM75_TensorOp_88128(manifest, args)
+  #GenerateSM75_WmmaTensorOp_161616(manifest, args)
+  #GenerateSM75_Simt_complex(manifest, args)
 
 #
 def GenerateSM80(manifest, args):
   GenerateSM80_TensorOp_16816(manifest, args)
-  GenerateSM80_SparseTensorOp_16832(manifest, args)
-  GenerateSM80_PlanarComplexTensorOp_16816(manifest, args)
+  # GenerateSM80_SparseTensorOp_16832(manifest, args)
+  # GenerateSM80_PlanarComplexTensorOp_16816(manifest, args)
   GenerateSM80_TensorOp_1688(manifest, args)
   GenerateSM80_TensorOp_1688_fast_math(manifest, args)
-  GenerateSM80_SparseTensorOp_16816_fast_math(manifest, args)
-  GenerateSM80_TensorOp_1688_complex(manifest, args)
+  # GenerateSM80_SparseTensorOp_16816_fast_math(manifest, args)
+  # GenerateSM80_TensorOp_1688_complex(manifest, args)
   # 3xTF32 
   GenerateSM80_TensorOp_1688_fast_fp32_math(manifest, args)
-  GenerateSM80_TensorOp_1688_fast_fp32_math_complex(manifest, args)
+  # GenerateSM80_TensorOp_1688_fast_fp32_math_complex(manifest, args)
   GenerateSM80_TensorOp_884(manifest, args)
-  GenerateSM80_TensorOp_884_complex(manifest, args)
-  GenerateSM80_TensorOp_884_complex_gaussian(manifest, args)
-  GenerateSM80_TensorOp_16832_TN(manifest, args)
-  GenerateSM80_SparseTensorOp_16864_TN(manifest, args)
-  GenerateSM80_TensorOp_16832_Interleaved(manifest, args)
-  GenerateSM80_TensorOp_16864_TN(manifest, args)
-  GenerateSM80_SparseTensorOp_168128_TN(manifest, args)
-  GenerateSM80_TensorOp_16864_Interleaved(manifest, args)
-  GenerateSM80_TensorOp_168256(manifest, args)
+  # GenerateSM80_TensorOp_884_complex(manifest, args)
+  # GenerateSM80_TensorOp_884_complex_gaussian(manifest, args)
+  # GenerateSM80_TensorOp_16832_TN(manifest, args)
+  # GenerateSM80_SparseTensorOp_16864_TN(manifest, args)
+  # GenerateSM80_TensorOp_16832_Interleaved(manifest, args)
+  # GenerateSM80_TensorOp_16864_TN(manifest, args)
+  # GenerateSM80_SparseTensorOp_168128_TN(manifest, args)
+  # GenerateSM80_TensorOp_16864_Interleaved(manifest, args)
+  # GenerateSM80_TensorOp_168256(manifest, args)
   GenerateSM80_Simt_f32(manifest, args)
   GenerateSM80_Simt_f64(manifest, args)
-  GenerateSM80_Simt_complex(manifest, args)
+  # GenerateSM80_Simt_complex(manifest, args)
 
 ###################################################################################################
 ###################################################################################################
@@ -2669,7 +2667,7 @@ if __name__ == "__main__":
   parser.add_argument("--curr-build-dir", default=".", help="CUTLASS current build directory. cmake files will be emitted in this directory")
   parser.add_argument("--generator-target", default='library', help="Target of CUTLASS Library Generator.")
   parser.add_argument("--architectures", default='53;60;61;70;75;80', help="Target compute architectures")
-  parser.add_argument("--kernels", default='', help='Comma delimited list to filter kernels by name.')
+  parser.add_argument("--kernels", default='', help='Comma delimited list to filter kernels by name.') # 'all'
   parser.add_argument("--ignore-kernels", default='', help='Comma delimited list of kernels to exclude from build.')
   parser.add_argument("--cuda-version", default="11.0.0", help="Semantic version string of CUDA Toolkit")
   parser.add_argument('--kernel-filter-file',   type=str, default=None, required=False, help='Full path of filter file')
@@ -2681,12 +2679,12 @@ if __name__ == "__main__":
 
   manifest = Manifest(args)
 
-  #GenerateSM50(manifest, args)
-  #GenerateSM60(manifest, args)
-  #GenerateSM61(manifest, args)
+  # GenerateSM50(manifest, args)
+  # GenerateSM60(manifest, args)
+  # GenerateSM61(manifest, args)
   GenerateSM70(manifest, args)
   GenerateSM75(manifest, args)
-  #GenerateSM80(manifest, args)
+  # GenerateSM80(manifest, args)
   if 'library' in args.generator_target.split(','):
     manifest.emit(GeneratorTarget.Library)
 
