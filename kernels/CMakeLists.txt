@@ -2,6 +2,12 @@
 file(GLOB_RECURSE cutlass_conv2d_src CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/conv2d/*.cu")
 add_library(cutlass_conv2d_library ${cutlass_conv2d_src})
 
+# cutlass generated conv2d_sm80
+set(CMAKE_CUDA_ARCHITECTURES 80)
+file(GLOB_RECURSE cutlass_conv2d_sm80_src CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/conv2d_sm80/*.cu")
+add_library(cutlass_conv2d_sm80_library ${cutlass_conv2d_sm80_src})
+set(CMAKE_CUDA_ARCHITECTURES 75)
+
 # cutlass generated conv2d_bias
 file(GLOB_RECURSE cutlass_conv2d_bias_src CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/conv2d_bias/*.cu")
 add_library(cutlass_conv2d_bias_library ${cutlass_conv2d_bias_src})

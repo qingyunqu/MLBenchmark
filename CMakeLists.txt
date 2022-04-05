@@ -6,6 +6,7 @@ project(bench C CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 17)
 
+add_definitions(-g)
 add_definitions(-w)
 add_definitions(-O4)
 
