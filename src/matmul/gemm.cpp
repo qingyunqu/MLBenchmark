@@ -5,12 +5,12 @@
 #include <cuda_fp16.h>
 #include <string>
 #include <unordered_set>
+#include <regex>
+#include <iostream>
 
 namespace cutlass {
 namespace library {
 void initialize_all_gemm_operations(Manifest &manifest);
-void initialize_cutlass_tensorop_f16_s1688gemm_f16_256x128_32x2_nn_align8(
-    Manifest &manifest);
 } // namespace library
 } // namespace cutlass
 
@@ -24,12 +24,6 @@ int main(int argc, char *argv[]) {
   int64_t m = atoi(argv[6]);
   int64_t n = atoi(argv[7]);
   int64_t k = atoi(argv[8]);
-  std::unordered_set<std::string> run_kernels;
-  if (argc >= 10) {
-    for (size_t i = 9; i < argc; i++) {
-      run_kernels.insert(argv[i]);
-    }
-  }
 
   LayoutEnum layout_a = str_to_layout_enum(lhs_layout);
   if (layout_a == LayoutEnum::Invalid) {
@@ -49,6 +43,26 @@ int main(int argc, char *argv[]) {
 
   Manifest manifest;
   cutlass::library::initialize_all_gemm_operations(manifest);
+
+  std::unordered_set<std::string> run_kernels;
+  if (argc >= 10) {
+    for (size_t i = 9; i < argc; i++) {
+      std::string argument(argv[i]);
+      if (argument[0] == '"') {
+        argument = argument.substr(1);
+      }
+      if (argument[argument.size() - 1] == '"') {
+        argument = argument.substr(0, argument.size() - 1);
+      }
+      std::cout << "regex: " << argument << "\n";
+      std::regex reg(argument);
+      for (auto kernel : manifest.kernels) {
+        if (std::regex_match(kernel->Name(), reg)) {
+          run_kernels.insert(kernel->Name());
+        }
+      }
+    }
+  }
 
   if (output_type == "fp32" && accmu_type == "fp32") {
     profile_gemm<__half, __half, float, float>(manifest, m, n, k, layout_a,

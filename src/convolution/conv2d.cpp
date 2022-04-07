@@ -2,6 +2,8 @@
 #include "profile.h"
 
 #include <cuda_fp16.h>
+#include <iostream>
+#include <regex>
 
 namespace cutlass {
 namespace library {
@@ -22,12 +24,6 @@ int main(int argc, char *argv[]) {
   int64_t paddingH = atoi(argv[9]);
   int64_t paddingW = atoi(argv[10]);
   int64_t N = atoi(argv[11]);
-  std::unordered_set<std::string> run_kernels;
-  if (argc >= 13) {
-    for (size_t i = 12; i < argc; i++) {
-      run_kernels.insert(argv[i]);
-    }
-  }
 
   int64_t dilationH = 1;
   int64_t dilationW = 1;
@@ -36,6 +32,26 @@ int main(int argc, char *argv[]) {
 
   Manifest manifest;
   cutlass::library::initialize_all_conv2d_operations(manifest);
+
+  std::unordered_set<std::string> run_kernels;
+  if (argc >= 13) {
+    for (size_t i = 12; i < argc; i++) {
+      std::string argument(argv[i]);
+      if (argument[0] == '"') {
+        argument = argument.substr(1);
+      }
+      if (argument[argument.size() - 1] == '"') {
+        argument = argument.substr(0, argument.size() - 1);
+      }
+      std::cout << "regex: " << argument << "\n";
+      std::regex reg(argument);
+      for (auto kernel : manifest.kernels) {
+        if (std::regex_match(kernel->Name(), reg)) {
+          run_kernels.insert(kernel->Name());
+        }
+      }
+    }
+  }
 
   profile_conv2d<__half, __half, __half, float>(
       manifest, N, iH, iW, iC, oH, oW, oC, kH, kW, strideH, strideW, paddingH,
