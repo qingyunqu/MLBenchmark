@@ -5,6 +5,7 @@
 #include <cuda_bf16.h>
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
+#include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -104,16 +105,27 @@ void PrintCUDABuffer(T* mat, size_t size, size_t print_size = 0) {
 // CheckBuffer
 //===----------------------------------------------------------------------===//
 
-template <typename T>
-inline bool EXPECT_NEAR(T first, T second, float relative_eps,
-                        float absolute_eps) {
-  float abs_diff =
-      std::abs(static_cast<float>(first) - static_cast<float>(second));
-  float rel_diff =
-      std::abs(abs_diff / static_cast<float>(first)); // relative diff
-  if (rel_diff > relative_eps && abs_diff > absolute_eps) {
-    fprintf(stderr, "    diff error, first: %f, second: %f\n",
-            static_cast<float>(first), static_cast<float>(second));
+template <typename T,
+          std::enable_if_t<std::is_floating_point<T>::value, int> = 0>
+bool EXPECT_NEAR(T first, T second, double absolute_eps, double relative_eps) {
+  double first_val = static_cast<double>(first);
+  double second_val = static_cast<double>(second);
+  double abs_diff = std::abs(first_val - second_val);
+  double rel_diff = 0;
+  if (first_val != 0) {
+    rel_diff = std::max(rel_diff, abs_diff / std::abs(first_val));
+  }
+  if (second_val != 0) {
+    rel_diff = std::max(rel_diff, abs_diff / std::abs(second_val));
+  }
+
+  if (abs_diff > absolute_eps && rel_diff > relative_eps) {
+    std::cerr << "ExpectNear Error: first value " << first_val
+              << ", second value " << second_val << "\n";
+    std::cerr << "Expected absolute eps: " << absolute_eps
+              << ", real absolute: " << abs_diff
+              << "; expected relative eps: " << relative_eps
+              << ", real relative: " << rel_diff << "\n";
     return false;
   }
   return true;
@@ -121,19 +133,14 @@ inline bool EXPECT_NEAR(T first, T second, float relative_eps,
 
 template <typename T>
 inline bool CheckCPUBuffer(T *first, T *second, size_t size, float relative_eps,
-                           float absolute_eps, size_t print_size = 1) {
+                           float absolute_eps, size_t print_count = 1) {
   size_t count = 0;
-  bool ret = true;
-  for (size_t i = 0; i < size; i++) {
-    if (!EXPECT_NEAR<T>(first[i], second[i], relative_eps, absolute_eps)) {
-      ret = false;
+  for (size_t i = 0; i < size && count < print_count; i++) {
+    if (!EXPECT_NEAR<T>(first[i], second[i], absolute_eps, relative_eps)) {
       count++;
-      if (count == print_size) {
-        return ret;
-      }
     }
   }
-  return ret;
+  return count == 0;
 }
 
 template <typename T>

@@ -145,11 +145,17 @@ int main(int argc, char *argv[]) {
   //             /*strideH*/ 2, /*strideW*/ 2, /*paddingH*/ 3, /*paddingW*/ 3,
   //             1e-3f, test);
 
-  RunBias<__half>(/*layout=*/"NHWC", /*N*/ 128, /*iH*/ 224, /*iW*/ 224,
-                  /*iC*/ 3,
-                  /*oC*/ 64, /*kH*/ 7, /*kW*/ 7,
-                  /*strideH*/ 2, /*strideW*/ 2, /*paddingH*/ 3,
-                  /*paddingW*/ 3);
+  // RunBias<__half>(/*layout=*/"NHWC", /*N*/ 128, /*iH*/ 224, /*iW*/ 224,
+  //                 /*iC*/ 3,
+  //                 /*oC*/ 64, /*kH*/ 7, /*kW*/ 7,
+  //                 /*strideH*/ 2, /*strideW*/ 2, /*paddingH*/ 3,
+  //                 /*paddingW*/ 3);
+
+  Run<__half>(/*layout=*/"NCHW", /*N*/ 128, /*iH*/ 224, /*iW*/ 224,
+              /*iC*/ 3,
+              /*oC*/ 64, /*kH*/ 7, /*kW*/ 7,
+              /*strideH*/ 2, /*strideW*/ 2, /*paddingH*/ 3,
+              /*paddingW*/ 3, 1e-3f, test);
 
   return 0;
 }
